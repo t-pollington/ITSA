@@ -1,0 +1,1131 @@
+---
+title: "Code analysis: Impact of intensified control strategies on incidence of visceral leishmaniasis in a highly endemic district of Bihar, India"
+author: "written by Timothy M Pollington and reviewed by Lloyd AC Chapman"
+date: "18/05/2020"
+output: pdf_document
+---
+
+# Preamble
+Code run in *R* v.4.0.0 with *RStudio* v1.2.5042 and main package \texttt{surveillance} v1.18.0 and \texttt{hhh4addon} v0.0.0.0.90. Unfortunately the general public will not be able to knit this document as the data is not publicly available. However we hope it will help those wishing to apply interrupted time-series analyses to their own data.
+
+## Load libraries & programme data
+```{r lib-load, results='hide'}
+rm(list = ls()) # clean workspace
+library(readstata13) # read.dta13()
+library(ggplot2) # graphs
+library(fanplot) # fanplot
+library(reshape2) # melt()
+library(stats) # ts()
+library(spdep) # nbOrder(), moran's I analysis
+library(surveillance) # poly2adjmat(), hhh4_spacetime classes
+library(sp) # shapefiles
+library(latex2exp) # latex in graphs
+library(abind) # combining matrices into an array
+library(hhh4addon) # distributed lag
+folder.loc = "C:/Users/mochu/OneDrive - University of Warwick/RMRI_analysis_tim/intensive_vaishali/paper1analysis/vaishali_VL_interrupted_time_series"
+fig.loc = paste0(folder.loc,"/paper/manuscript_files/manuscript_svg")
+setwd(folder.loc)
+df <- read.dta13('vl_incl_coinfs.dta')
+```
+
+```{r correct-district-names, include=FALSE}
+#correct district names to match Census 2011 versions
+colnames(df)[23] <- 'purniaka'
+colnames(df)[122] <- 'purniaka_hiv'
+colnames(df)[155] <- 'purniavlhivtb'
+colnames(df)[9] <- 'purbichamparanka'
+colnames(df)[108] <- 'purbichamparan_hiv'
+colnames(df)[141] <- 'purbichamparanvlhivtb'
+colnames(df)[33] <- 'paschimchamparanka'
+colnames(df)[132] <- 'paschimchamparan_hiv'
+colnames(df)[165] <- 'paschimchamparanvlhivtb'
+
+df = df[,c(1:33,100:166)] # drop death and pkdl cases
+df[,101:133] = 0
+df = df[,c(1:99,101:133,100)] # swap month col out to end col
+district.names = substr(colnames(df)[1:33],1,nchar(colnames(df)[1:33])-2)
+colnames(df)[1:33] = paste0(district.names,"TOTAL")
+colnames(df)[34:66] = paste0(district.names,"VLHIVTB")
+colnames(df)[67:99] = paste0(district.names,"VLHIVTBprop")
+colnames(df)[100:132] = paste0(district.names,"VL")
+for (district in 1:33) {
+  for (month in 1:72) {
+    df[month,(99+district)] = df[month,district]
+    df[month,(33+district)] = sum(df[month,(33+district)], df[month,(66+district)], 
+                                  na.rm = TRUE)
+    df[month,district] = sum(df[month,district], df[month,(33+district)], na.rm = TRUE)
+    df[month,(66+district)] = df[month,(33+district)] / df[month,district]
+  }  
+}
+```
+
+## VL-HIV breakdown
+```{r VLHIV}
+  vaishali.TOT2015 = sum(df[37:48,32])
+  vaishali.VLHIV2015 = sum(df[37:48,65])
+  vaishali.VLHIV2015/vaishali.TOT2015*100 # 2.9%
+  other.TOT2015 = sum(df[37:48,c(1:31,33)])
+  other.VLHIV2015 = sum(df[37:48,c(34:64,66)])
+  other.VLHIV2015/other.TOT2015*100 # 0.1%
+  
+  vaishali.TOT2016 = sum(df[49:60,32])
+  vaishali.VLHIV2016 = sum(df[49:60,65])
+  vaishali.VLHIV2016/vaishali.TOT2016*100 # 8.9%
+  other.TOT2016 = sum(df[49:60,c(1:31,33)])
+  other.VLHIV2016 = sum(df[49:60,c(34:64,66)])
+  other.VLHIV2016/other.TOT2016*100 # 1.7%
+  
+  vaishali.TOT2017 = sum(df[61:72,32])
+  vaishali.VLHIV2017 = sum(df[61:72,65])
+  vaishali.VLHIV2017/vaishali.TOT2017*100 # 15.1%
+  other.TOT2017 = sum(df[61:72,c(1:31,33)])
+  other.VLHIV2017 = sum(df[61:72,c(34:64,66)])
+  other.VLHIV2017/other.TOT2017*100 # 3.9%
+
+```
+
+## Estimating district populations for 2012-7 from census data
+The population is estimated by a monthly geometric progression using the decadal change between the 2001 & 2011 censuses. We assume a constant population increase during each decadal period.
+
+```{r popn-estimate, results='hide'}
+df.ka <- df[,c(1:33,133)] # take the TOTALs and month number column
+setwd(folder.loc)
+popn.df <- read.csv(file = 'Pop09_16v4.csv') # contains popn estimates 2012-7
+popn.df[,1] # note Vaishali is row 32 in popn.df
+popn.df <- popn.df[1:33,c(1,4:76)] # remove irrelevant cells
+popn.df <- as.matrix(popn.df) # matrix coercion prevents later subsetting making a list
+popn.time.matrix <- matrix(0,nrow = 72,ncol = 33) # 72mo x 33districts. 1st row = Jan 2012
+popn.time.matrix <- t(popn.df[1:33,3:74])
+popn.time.matrix <- mapply(popn.time.matrix, FUN=as.numeric) # these two lines necessary 
+# to change it from a character matrix.
+popn.time.matrix <- matrix(data=popn.time.matrix, nrow = 72, ncol = 33)
+```
+
+# Study area
+There were 33 study districts in Bihar State, as no consistent data for other 5.
+This is a map of Bihar state:
+```{r map-of-the-state}
+IND_adm2 <- readRDS(paste0(folder.loc,"/IND_adm2.rds")) 
+# from https://gadm.org/maps/IND/bihar.html
+IND_adm2 <- IND_adm2[IND_adm2$NAME_1 == 'Bihar',] # subset only Bihar regions
+IND_adm2 <- IND_adm2[IND_adm2$NAME_2 != 'Aurangabad' & IND_adm2$NAME_2 != 'Gaya' & 
+                       IND_adm2$NAME_2 != 'Jamui' & IND_adm2$NAME_2 != 'Kaimur' & 
+                       IND_adm2$NAME_2 != 'Rohtas',] # remove the 5 non-study districts
+IND_adm2$NAME_2[23] <- 'Purbi Champaran'
+plot(IND_adm2, main = "Map of the 33 study districts")
+text(coordinates(IND_adm2), labels = IND_adm2$NAME_2, cex = 0.6)
+```
+
+# Descriptive analysis
+
+## Case number changes
+In Vaishali district during the intervention years 2015-7, monthly case numbers have declined in absolute terms versus the state mean and its highly-endemic neighbour (Saran).
+
+```{r abs-case-numbers-graph, eval=FALSE}
+df.ka$KA.mean <- rowMeans(df.ka[,c(1:31,33)]) # calc monthly KA ave., without Vaishali(32)
+df.ka.melt <- melt(data = df.ka,id.vars = 'month')
+labelDistrict <- function(x){
+  x <- switch(as.character(x),'vaishaliTOTAL'='Vaishali (V)',
+              'KA.mean'='State mean (excl. V)')
+  return(x)
+}
+df.ka.melt$district <- as.character(lapply(X = df.ka.melt$variable,FUN = labelDistrict))
+df.ka.melt$value <- as.integer(df.ka.melt$value)
+upperCI <- function(x){
+  x <- poisson.test(x, conf.level = 0.95)$conf.int[2]
+  return(x)
+}
+lowerCI <- function(x){
+  x <- poisson.test(x, conf.level = 0.95)$conf.int[1]
+  return(x)
+}
+df.ka.melt$upperci <- sapply(X = df.ka.melt$value, FUN = upperCI)
+df.ka.melt$lowerci <- sapply(X = df.ka.melt$value, FUN = lowerCI)
+# overwrite the lower/upper CIs for KA.mean
+for (i in 2377:2448) {
+  x <- (df.ka.melt[df.ka.melt[,1] == df.ka.melt[i,1],3])[c(1:31, 33)]
+  df.ka.melt$lowerci[i] <- as.numeric(exp(confint(glm(x ~ 1, family=poisson)))[1])
+  df.ka.melt$upperci[i] <- as.numeric(exp(confint(glm(x ~ 1, family=poisson)))[2])
+}
+df.ka.melt$district <- factor(df.ka.melt$district, 
+                              levels = c("Vaishali (V)", "State mean (excl. V)")) 
+# for legend order
+graph <- ggplot(data = df.ka.melt)
+graph <- graph +
+geom_ribbon(data = df.ka.melt[df.ka.melt$district == "State mean (excl. V)",], 
+            aes(x = month, ymin = lowerci, ymax = upperci, group = district, 
+                fill = district, colour = district), alpha = 0.1, linetype = "dotted") +
+geom_line(data = df.ka.melt[df.ka.melt$district == "State mean (excl. V)",], 
+          aes(x = month, y = value, group = district, colour = district), size = 1.5) +
+geom_ribbon(data = df.ka.melt[df.ka.melt$district == "Vaishali (V)",], 
+            aes(x = month, ymin = lowerci, ymax = upperci, group = district, 
+                fill = district, colour = district), alpha = 0.1, linetype = "dotted") +
+geom_line(data = df.ka.melt[df.ka.melt$district == "Vaishali (V)",], 
+          aes(x = month, y = value, group = district, colour = district), size = 1.5)
+graph <- graph + scale_color_manual(breaks = c("Vaishali (V)","State mean (excl. V)"), 
+                                    values=c("#56B4E9", "#000000"), 
+                                    guide = guide_legend(title = "District")) + 
+  scale_fill_manual(values=c("#56B4E9", "#000000"), guide = F)
+graph <- graph + labs(x = "Diagnosis month during 2012–2017", y = "Number of VL cases", 
+                      color = "District") + 
+  guides(color=guide_legend(override.aes=list(fill=NA)))
+graph <- graph + 
+  theme(text = element_text(family = "serif", size = 10), plot.title = element_text(face = "bold"), 
+        legend.position = c(0.9,0.8), legend.title = element_text(face="bold"), 
+        legend.background = element_rect(linetype="solid", colour = "black"), 
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  scale_y_continuous(expand = c(0,0), breaks = c(0,60,120,180,240,300)) + 
+  scale_x_date(expand = c(0,0), date_labels = "%b-%y", date_breaks = "6 months") + 
+  coord_cartesian(ylim = c(0, 300))
+setwd(fig.loc)
+svg(filename = "fig2timeseries.svg", width = (9*2/2.5), height = (6*2/2.5))
+graph
+dev.off()
+```
+
+```{r rank-changes-of-yoy-absolute-cases-or-yoy-monthly-changes}
+# rank change analysis
+df3 <- df[,c(1:33,133)]
+# yoy calc for 'during intervention'
+for (i in 1:33) {
+  district.yoy <- c(rep(NA,36),df3[37:nrow(df3),i] - df3[25:(nrow(df3)-12),i] / 
+                      df3[25:(nrow(df3)-12),i]*100)
+  df3 <- cbind(df3,district.yoy)
+}
+colnames(df3)[35:67] <- paste0(colnames(df3)[1:33],'.yoy')
+vaishali.yoy.rank <- NULL
+for (i in 37:nrow(df3)) {
+  vaishali.yoy.rank <- c(vaishali.yoy.rank,as.numeric(rank(df3[i,35:67])[32]))
+}
+round(mean(vaishali.yoy.rank)) # 19th largest VL reduction averaged over 36 monthly y-o-y 
+# percentages (1st=largest negative change) during 2015-7
+for (i in 1:33) {
+  district.yoy.pre <- c(rep(NA,12),df3[13:36,i] - df3[1:(36-12),i] / 
+                          df3[1:(36-12),i]*100,rep(NA,36))
+  df3 <- cbind(df3,district.yoy.pre)
+}
+colnames(df3)[68:100] <- paste0(colnames(df3)[1:33],'.yoy.pre')
+vaishali.yoy.pre.rank <- NULL
+for (i in 13:36) {
+  vaishali.yoy.pre.rank <- c(vaishali.yoy.pre.rank,as.numeric(rank(df3[i,68:100])[32]))
+}
+round(mean(vaishali.yoy.pre.rank)) # 26th largest VL reduction averaged over 24 monthly 
+# y-o-y percentages (1st=largest negative change) during 2013-4
+
+# Wilcoxon two-sample test with continuity correction
+x <- vaishali.yoy.pre.rank
+y <- vaishali.yoy.rank
+wilcox.test(x, y, alternative = "t") #p<1e-07
+
+vaishali.cases.rank <- NULL
+for (i in 37:72) {
+  vaishali.cases.rank <- c(vaishali.cases.rank,
+                           as.numeric(rank(-1 * (rank(df3[i,1:33])))[32]))
+}
+round(mean(vaishali.cases.rank)) # 9th highest VL incidence averaged over 36 monthly 
+# incidence (1st=largest VL incidence) during 2015-7
+vaishali.cases.pre.rank <- NULL
+for (i in 1:36) {
+  vaishali.cases.pre.rank <- c(vaishali.cases.pre.rank,
+                               as.numeric(rank(-1 * (rank(df3[i,1:33])))[32]))
+}
+round(mean(vaishali.cases.pre.rank)) # 3rd highest VL incidence averaged over 36 monthly 
+# incidences (1st=largest VL incidence) during 2012-4
+# Wilcoxon two-sample test with continuity correction
+x <- vaishali.cases.pre.rank
+y <- vaishali.cases.rank
+wilcox.test(x, y, alternative = "t") # p<1e-09
+```
+Vaishali had the 19th largest (1st=largest negative change) VL reduction, averaged over 36 monthly ranks based on year-on-year percentages during 2015-7, versus before the intervention having only the 26th largest VL reduction averaged over 24 months during 2013-4. Wilcoxon two-sample one-tailed test with continuity correction, p=1e-07.
+
+It had the 9th highest (1st=highest) VL incidence averaged over 36 monthly incidence ranks during 2015-7, versus before the intervention when it had the 3rd highest VL incidence averaged over 36 monthly incidences (1st=highest VL incidence) during 2012-4. Same Wilcoxon test, p<1e-09
+
+Considering these two results it appears that during the intervention period Vaishali changed significantly. In the next section we will use a time-series model to account for factors other than the intervention effect that may have caused this to come about.
+
+## Creating ka.sts object
+```{r ka.sts-creation, include=FALSE}
+distt_nbOrder <- nbOrder(poly2adjmat(IND_adm2),maxlag = 1) # maxlag=1 ie 1storder nbours
+# IND_adm2$NAME_2
+# colnames(df.ka)
+df.ka <- df[,c(1:8,10:21,33,22,9,23:32)] # ordered so that it matches IND_adm2.
+popn.time.matrix <- popn.time.matrix[,c(1:8,10:21,33,22,9,23:32)] # popn.time.matrix 
+# ordered to match IND_adm2
+#paste(colnames(df.ka), IND_adm2$OBJECTID, sep = '') # these are the district names 
+# linked to shapefile ID for reference
+colnames(df.ka) <- IND_adm2$OBJECTID
+counts <- as.matrix(df.ka)
+row.names(IND_adm2) <- as.character(IND_adm2$OBJECTID)
+ka.sts <- sts(observed = counts, start = c(2012, 1), frequency = 12, map = IND_adm2, 
+              population = popn.time.matrix, neighbourhood = distt_nbOrder)
+sum(ka.sts@observed[1:36,33]) # 3,598 used in abstract
+sum(ka.sts@observed[37:72,33]) # 762 used in abstract
+
+#crude comparison
+a <- sum(ka.sts@observed[25:36,33]) #jan2014-dec 2014 664, quoted in intro and results
+b <- sum(ka.sts@observed[37:48,33]) #jan2015-dec 2015 411, quoted in intro and results
+c <- sum(ka.sts@observed[49:60,33]) #jan2016-dec 2016 179, quoted in intro and results
+d <- sum(ka.sts@observed[61:72,33]) #jan2017-dec 2017 172
+
+(b-a)/a*100 # -38·1%, quoted in intro and results
+(c-b)/b*100 # -56·4%, quoted in intro and results
+```
+
+## Spatial distribution
+```{r morans}
+nb <- poly2nb(IND_adm2, queen=F) # only polygons sharing an edge (not vertex) are nbours
+lw <- nb2listw(nb, style="W", zero.policy=TRUE) # assigning equal weights
+IND_adm2$POPULATION <- popn.time.matrix[18,] # apply Jun 2013 (middle yr in the 
+# pre-intervention era) as the population.
+rates <- colSums(ka.sts[ka.sts@epoch <= 36]@observed)/(36/12)*10000/IND_adm2$POPULATION 
+# incidence (in person yr units) 2012-4
+set.seed(1984)
+moran.mc(rates, lw, nsim=9999) # I = 0.35856, observed rank = 9983, p-value = 0.0017
+# note nsim=9999, but in fact moran.mc does 9999+1=10000 sims
+IND_adm2$POPULATION <- popn.time.matrix[54,] # apply Jun 2016 (middle yr in the 
+# intervention) as the population
+rates <- colSums(ka.sts[ka.sts@epoch >= 37]@observed)/(36/12)*10000/IND_adm2$POPULATION 
+# incidence (in person yr units) 2015-7
+moran.mc(rates, lw, nsim=9999) # I = 0.400, observed rank = 9992, p-value = 8e-04
+```
+
+The above figures show spatial correlation with neighbouring districts both before and during the intervention; Global Moran's I = 0·36, p = 0·002 (10,000 simulations) & Global Moran's I = 0·40, p < 1e-03, respectively.
+
+# Model development using surveilance::hhh4 and hhh4addon
+## Picking a cutoff for 'high/low endemicity'
+We assign districts to low and high endemic groups based on visually picking a cutoff from the distribution of the number of villages and their respective cumulative study case numbers. It seems the distribution is a mixture of two and we chose the lowest 18 districts as 'low-endemic'; each group had a different overdispersion parameter.
+
+```{r highlow-choose}
+IND_adm2$POPULATION <- popn.time.matrix[36,] # apply Dec 2014 (middle yr in the data) as 
+# the population
+ka.sts <- sts(observed = counts, start = c(2012, 1), frequency = 12, map = IND_adm2, 
+              population = popn.time.matrix, neighbourhood = distt_nbOrder)
+# H and L distt selection below
+h <- hist(colSums(ka.sts@observed),nclass = 10, plot = F)
+bar.colour <- ifelse(h$breaks < 1000, "#009E73", "#CC79A7")[-length(h$breaks)]
+setwd(fig.loc)
+svg(filename = "figS2highlowhist.svg", width = 13.66, height = 7.68)
+par(family = "serif")
+plot(h,col = bar.colour, main = NULL, xlab = 'Total VL cases during 2012-2017', 
+     ylab = 'Number of districts', xaxs = "i", yaxs = "i", yaxt = "n",
+     family = "serif")
+axis(2, at = seq(0,12,2), labels = c("0","2","4","6","8","10","12"), las = 2)
+legend(c(4000,5300),c(9.75,11),
+legend = c(TeX('high endemicity $\\psi_H$ ($\\geq$1000 cases)'),
+           TeX('low endemicity $\\psi_L$ ($<$1000 cases)')),
+col=c('#CC79A7', '#009E73'), pch = c(15,15), pt.cex = 1.5)
+dev.off()
+HL.factor <- rep(NA,33)
+HL.factor[order(colSums(ka.sts@observed))[1:18]] <- 'L'
+HL.factor[-order(colSums(ka.sts@observed))[1:18]] <- 'H'
+HL.factor <- as.factor(HL.factor)
+VHHL.factor = HL.factor
+levels(VHHL.factor) = c("L","H","VH")
+VHHL.factor[c(18,27,33)] = "VH"
+```
+
+## Estimate a reasonable serial interval for VL
+Using infection-to-onset time from Chapman et al.'s 6-state Markov model (Table A8 of Quantification...) 135 (109–167) days, gives the incubation period mean. This was from BG but assumed to be the same for India. From the same data but a different analysis (Chapman et al.'s PNAS paper) we took the overdispersion term. Together we generated the incubation period distribution as a Negative Binomial distribution.
+
+The infectiousness period was obtained from Jervis et al from their 2012-2013 study of onset-to-diagnosis time. We used the latter results from late 2013 and assumed these characteristics remained constant since 2013 until 2017. The times were read off the curve using pixel measurements and a log-normal distribution fitted. 
+
+```{r estimate DxtoDx distribution}
+# pixel length measurements from Jervis et al. figure S1. Q3 2012
+zero.graph=652
+min.graph=652
+LQ.graph=618
+med.graph=594
+UQ.graph=559
+max.graph=132
+threehundred.graph = 96
+
+OTD.min = abs(min.graph - zero.graph)/abs(threehundred.graph - zero.graph)*300
+OTD.LQ = abs(LQ.graph - zero.graph)/abs(threehundred.graph - zero.graph)*300
+OTD.med = abs(med.graph - zero.graph)/abs(threehundred.graph - zero.graph)*300
+OTD.UQ = abs(UQ.graph - zero.graph)/abs(threehundred.graph - zero.graph)*300
+OTD.max = abs(max.graph - zero.graph)/abs(threehundred.graph - zero.graph)*300
+
+set.seed(19012)
+incub.distrib2 = NULL
+counter = 0
+N.desired = 1e5
+while (counter < N.desired) {
+  store.sample = rnbinom(n = 1, size = 3, prob = 0.35)
+  # table S4 https://www.medrxiv.org/content/10.1101/2020.02.24.20023325v1.full.pdf and
+  # p4 out of 37.
+  if(store.sample <= 24 & store.sample != 0){
+    # disallow 0 months in keeping with source for p which had strictly positive support
+    incub.distrib2 = c(incub.distrib2, store.sample)
+    counter = counter + 1
+  }
+}
+hist(incub.distrib2)
+mean(incub.distrib2) #6.0mo
+
+OTD.data = c(OTD.min, OTD.LQ, OTD.med, OTD.UQ, OTD.max)+1 # add 1d so lnorm can fit
+OTD.lnorm = rriskDistributions::get.lnorm.par(
+  p = c(0.001,0.25,0.5,0.75,0.999), q = OTD.data)
+OTD.distrib2 = NULL
+counter = 0
+while (counter < N.desired) {
+  store.sample = rlnorm(n = 1, meanlog = OTD.lnorm[1], 
+                        sdlog = OTD.lnorm[2])  
+  if(store.sample <= OTD.max){
+    OTD.distrib2 = c(OTD.distrib2, store.sample)
+    counter = counter + 1
+  }
+}
+OTD.distrib2 = OTD.distrib2/365*12 # convert to months
+hist(OTD.distrib2)
+mean(OTD.distrib2) # 1.34mo
+halfOTD.distrib1 = sample(OTD.distrib2, size = N.desired, replace = TRUE)*0.5
+
+Dx.distrib = incub.distrib2 + OTD.distrib2  - halfOTD.distrib1
+hist(Dx.distrib)
+mean(Dx.distrib) # 6.5mo
+median(Dx.distrib) # 5.7mo
+Dx = table(cut(Dx.distrib, breaks = -1:25))
+names(Dx) = -1:24
+sum(Dx[(1+2):(12+2)])/sum(Dx)*100 # 90.3% for lag-12
+Dx.12 = as.numeric(Dx[(1+2):(12+2)])
+Dx.12 = Dx.12/sum(Dx.12)
+round(mean(incub.distrib2 + OTD.distrib2)) # 7mo shift reqd
+round(mean(Dx.distrib)) # mean 6mo Dx distrib. Match sliding windows to these
+I = ka.sts@observed[,33]
+I.other = rowSums(ka.sts@observed[,-33])
+t_start <- seq(2,(length(I)-5))
+t_end <- t_start + 5
+Dx.Re = c(0,Dx.12)
+```
+
+```{r effective-reproduction-numbers, eval=FALSE}
+library(EpiEstim) # estimate_R()
+alldistrict.Re = matrix(NA, nrow = 33, ncol = 72)
+for (district in 1:33) {
+  alldistrict.Re[district,] = c(
+    rep.int(0,6), estimate_R(incid = ka.sts@observed[,district], 
+                             method = "si_from_sample", si_sample = Dx.Re,
+    config = make_config(list(t_start = t_start, t_end = t_end)))$R$`Mean(R)`)
+}
+Vaishali.Re = c(rep.int(0,6), estimate_R(incid = I, method = "si_from_sample", 
+                                         si_sample = Dx.Re,
+                     config = make_config(list(t_start = t_start, 
+                                               t_end = t_end)))$R$`Mean(R)`)
+Vaishali.lower = c(rep.int(0,6), estimate_R(incid = I, method = "si_from_sample", 
+                                         si_sample = Dx.Re,
+                     config = make_config(list(t_start = t_start, 
+                                               t_end = t_end)))$R$`Quantile.0.025(R)`)
+Vaishali.upper = c(rep.int(0,6), estimate_R(incid = I, method = "si_from_sample", 
+                                         si_sample = Dx.Re,
+                     config = make_config(list(t_start = t_start, 
+                                               t_end = t_end)))$R$`Quantile.0.975(R)`)
+other.Re = c(rep.int(0,6), estimate_R(incid = I.other, method = "si_from_sample", 
+                                      si_sample = Dx.Re,
+                     config = make_config(list(t_start = t_start, 
+                                               t_end = t_end)))$R$`Mean(R)`)
+other.lower = c(rep.int(0,6), estimate_R(incid = I.other, method = "si_from_sample", 
+                                      si_sample = Dx.Re,
+                     config = make_config(list(t_start = t_start, 
+                                               t_end = t_end)))$R$`Quantile.0.025(R)`)
+other.upper = c(rep.int(0,6), estimate_R(incid = I.other, method = "si_from_sample", 
+                                      si_sample = Dx.Re,
+                     config = make_config(list(t_start = t_start, 
+                                               t_end = t_end)))$R$`Quantile.0.975(R)`)
+
+setwd(fig.loc)
+svg(filename = "fig3re.svg", width = (11*2/2.5), height = (11*2/2.5))
+par(mfrow = c(2,1), family = "serif", mai=c(0.9,1,0.1,0.1),
+    fig=c(0,1,0.5,1))
+plot(x = 1:65, y = other.Re[8:72], type = "l", lwd = 2, 
+     ylim = c(0.47,1.7), xaxs = "i", yaxs = "i", xlab = "",
+     ylab = bquote("Effective reproduction number "~ R[e] ~"("~t~")"), xaxt = "n", 
+     yaxt = "n")
+lines(x = 1:65, y = other.lower[8:72], lty = 2)
+lines(x = 1:65, y = other.upper[8:72], lty = 2)
+lines(x = 1:65, y = Vaishali.lower[8:72], lwd = 2, lty = 2, col = "#56B4E9")
+lines(x = 1:65, y = Vaishali.upper[8:72], lwd = 2, lty = 2, col = "#56B4E9")
+lines(x = 1:65, y = Vaishali.Re[8:72], lwd = 4, col = "#56B4E9")
+abline(h = 1)
+abline(v = 6.5, lty = 2)
+legend(x = c(14, 33), y = c(1.3, 1.67), text.width = 1, 
+       legend=c('Vaishali district mean', '95%CI', 'Other 32 districts mean', '95%CI'), 
+       col=c("#56B4E9","#56B4E9","black","black"), 
+       lty=c(1,2,1,2), lwd=c(4,2,4,2))
+axis(1, at = c(1,13,25,37,49,61,65), labels = c("Jan-12","Jan-13","Jan-14","Jan-15","Jan-16","Jan-17","May-17"))
+axis(2, at = seq(0.6,1.6,0.2), labels = c("0.6","0.8","1","1.2","1.4","1.6"))
+par(fig = c(0,1,0,0.5), new = TRUE)
+plot(x = 1:65, y = alldistrict.Re[1,8:72], type = "l", ylim = c(0.1,22), 
+     xaxs = "i", yaxs = "i", xlab = "Inferred infection time (month)", 
+     ylab = bquote("Effective reproduction number "~ R[e] ~"("~t~")"),
+     xaxt = "n", col = scales::alpha("grey30", alpha = 0.5), log = "y", yaxt = "n")
+for (district in 2:32) {
+  lines(x = 1:65, y = alldistrict.Re[district,8:72], 
+        col = scales::alpha("grey30", alpha = 0.5))
+}
+lines(x = 1:65, y = alldistrict.Re[33,8:72], col = "#56B4E9", lwd = 4)
+abline(h = 1)
+abline(v = 6.5, lty = 2)
+axis(1, at = c(1,13,25,37,49,61,65), labels = c("Jan-12","Jan-13","Jan-14","Jan-15","Jan-16","Jan-17","May-17"))
+axis(2, at = c(0.1,0.2,0.5,1,2,5,10,20), 
+     labels = c("0.1","0.2","0.5","1","2","5","10","20"))
+dev.off()
+```
+
+# Spatiotemporal model
+
+```{r model-development}
+# calcDxconst() produces an intervention term according to the start month which is 
+# weighted to account for the fact that in a distributed lag model only the first lags
+# will see the effect first.
+calcDxconst <- function(startmonth, method = "SI", par_lag = NULL) {
+  int.constlag <- matrix(data = 0, nrow = dim(ka.sts)[1], ncol = dim(ka.sts)[2])
+  vaishali.count = ka.sts@observed[,33]
+  studytimeleft = 72 - startmonth + 1
+  casecorrection = rep.int(0,12)
+  lag = 1
+  for (t in (startmonth):(startmonth+11)) {
+    casecorrection[lag] = sum(vaishali.count[(t-1):((t-lag))])/
+      sum(vaishali.count[(t-1):(t-12)])
+      # using reverse time order as it'll be multiplied soon with Dx which starts at lag1
+      # and goes back in time to lag12.
+    lag = lag + 1
+  }
+  Dx.const = rep.int(0,studytimeleft)
+  if(method == "SI"){
+    Dx.const[1] = Dx.12[1]*casecorrection[1]
+    for (lag in 2:12) {
+      Dx.const[lag] = sum(Dx.12[1:lag])*casecorrection[lag]
+    }
+  }
+  else if(method == "geo"){
+    geo.12 = hhh4addon::geometric_lag(par_lag, min_lag = 1, max_lag = 12)
+    Dx.const[1] = geo.12[1]*casecorrection[1]
+    for (lag in 2:12) {
+      Dx.const[lag] = sum(geo.12[1:lag])*casecorrection[lag]
+    }
+  }
+  else if(method == "poisson"){
+    poisson.12 = hhh4addon::poisson_lag(par_lag, min_lag = 1, max_lag = 12)
+    Dx.const[1] = poisson.12[1]*casecorrection[1]
+    for (lag in 2:12) {
+      Dx.const[lag] = sum(poisson.12[1:lag])*casecorrection[lag]
+    }
+  }
+  else if(method == "linear"){
+    linear.12 = hhh4addon::linear_lag(par_lag, min_lag = 1, max_lag = 12)
+    Dx.const[1] = linear.12[1]*casecorrection[1]
+    for (lag in 2:12) {
+      Dx.const[lag] = sum(linear.12[1:lag])*casecorrection[lag]
+    }
+  }
+  for (t in 13:studytimeleft){
+    Dx.const[t] = 1
+  }
+  int.constlag[startmonth:72,33] = Dx.const
+  return(int.constlag)
+}
+
+Dx_lag = function(par_lag, min_lag, max_lag){
+  # all args unused but included to please hhh4_lag()
+  Dx.12 = Dx.12
+  return(Dx.12)
+}
+
+vaishali <- matrix(data = c(rep.int(0, times = dim(ka.sts)[1]*dim(ka.sts)[2] - 72),
+                            rep.int(1, times = 72)),
+                   nrow = dim(ka.sts)[1], ncol = dim(ka.sts)[2], byrow = F)
+
+end.HL = matrix(data = 0, nrow = 72, ncol = 33)
+end.HL[,which(HL.factor=="H")] = 1
+
+end.VHHL.H = matrix(data = 0, nrow = 72, ncol = 33)
+end.VHHL.H[,which(VHHL.factor=="H")] = 1
+end.VHHL.VH = matrix(data = 0, nrow = 72, ncol = 33)
+end.VHHL.VH[,which(VHHL.factor=="VH")] = 1
+
+int.jan15constlag = calcDxconst(37)
+
+# base model without end.HL & intervention
+x <- list(
+  ar = list(f = ~ 1 + vaishali),
+  end = list(f = ~ 1, offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+M1.base = hhh4_lag(stsObj = ka.sts, control = x)
+summary(M1.base, idx2Exp = T) # AIC: 10882.79
+
+# base model with end.HL
+x <- list(
+  ar = list(f = ~ 1 + vaishali + int.jan15constlag),
+  end = list(f = ~ end.HL, offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+M1.base = hhh4_lag(stsObj = ka.sts, control = x)
+summary(M1.base, idx2Exp = T) # AIC: 10886.67
+
+# seasonality in END
+x <- list(
+  ar = list(f = ~ 1 + vaishali + int.jan15constlag),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+M1.ENDseas = hhh4_lag(stsObj = ka.sts, control = x)
+summary(M1.ENDseas, idx2Exp = T) # AIC: 10721.52
+
+# seasonality in END + AR
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + int.jan15constlag, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+final.modelARseas <- hhh4_lag(stsObj = ka.sts, control = x)
+summary(final.modelARseas, idx2Exp = T) # AIC: 10517.49. 
+# 10517.49-10886.67 = -369 (rounded)
+
+# quick check with triple overdisp
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + int.jan15constlag, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = VHHL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+final.modelARseas <- hhh4_lag(stsObj = ka.sts, control = x)
+summary(final.modelARseas, idx2Exp = T) # AIC: 10516.28 reduced a little bit
+# need to investigate predictive performance
+
+# plus end.VHHL
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + int.jan15constlag, 
+                                  period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.VHHL.H + end.VHHL.VH, 
+                                   period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = VHHL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+final.modelARseas <- hhh4_lag(stsObj = ka.sts, control = x)
+summary(final.modelARseas, idx2Exp = T) # 10541.94, much higher with tri-endemic
+
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+final.modelARseasnopilot <- hhh4_lag(stsObj = ka.sts, control = x)
+summary(final.modelARseasnopilot, idx2Exp = T) # AIC: 10515.53.
+```
+```{r VLHIVTBprop, eval = F}
+# does VLHIVTBprop vary with time?
+VLHIVTBprop = df[,(c(1:8,10:21,33,22,9,23:32)+66)]
+VLHIVTBprop[is.na(VLHIVTBprop)] = 0
+VLHIVTBprop = as.matrix(VLHIVTBprop)
+
+setwd(fig.loc)
+svg(filename = "figS9VLHIVTBprop.svg", width = 8, height = 5.3)
+par(family = "serif")
+plot(x = 37:72, y = VLHIVTBprop[37:72,33], xlab = "Diagnosis month", yaxt = "n",
+     ylab = "VL-HIV/TB proportion", col = "white", xaxt = "n", xaxs = "i", 
+     yaxs = "i")
+lines(x = 37:72, y = rowMeans(VLHIVTBprop[37:72,1:32], na.rm = TRUE))
+lines(x = 37:72, y = VLHIVTBprop[37:72,33], lwd = 2, col = "#56B4E9")
+axis(1, at = c(37,49,61,72), labels = c("Jan-15", "Jan-16", "Jan-17", "Dec-17"))
+axis(2, at = c(0,0.1,0.2,0.3,0.35), labels = c("0","0.1","0.2","0.3","0.35"), 
+     las = 2)
+legend("topleft", legend=c('Vaishali district','Other 32 districts mean'), col=c("#56B4E9","black"), lwd=c(4,2))
+dev.off()
+```
+
+### Intervention start date sensitivity
+```{r which-intervention-month?}
+i <- 1
+X <- rep.int(NA,13) # start month
+Y <- rep.int(NA,13) # AIC
+# month 33=sep14; 37=jan15; 45=sep15
+for (month in 33:45) {
+intervention <- calcDxconst(month)
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+intsensitiv <- hhh4_lag(stsObj = ka.sts, control = x)
+X[i] <- month
+Y[i] <- summary(intsensitiv, idx2Exp = T, amplitudeShift = T)$AIC
+i <- i + 1
+}
+plot(X,Y, main = 'Goodness of fit', xlab = 'Month number s(33 = September 2014)', ylab = 'AIC', type = "l") 
+names(Y) = X
+Y # minima at month=45 however very little difference across the range. 
+# Given that I will choose month = 37.
+
+# final model
+intervention <- calcDxconst(37)
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+final.modelintjan15 <- hhh4_lag(stsObj = ka.sts, control = x)
+final.modelintjan15$convergence
+summary(final.modelintjan15, idx2Exp = T, amplitudeShift = T) #AIC 10517.49
+changeoftrend.coeffs <- summary(final.modelintjan15) # work in model (log) link space
+
+# pre-pilot Vaishali
+prepilot.vaishali = changeoftrend.coeffs[[9]][1] + changeoftrend.coeffs[[9]][2]
+round(exp(prepilot.vaishali),3) # Vaishali-specific AR term for before the intervention was 
+# applied 0·75
+# pre-pilot CIs
+# Var(X+Y) = Var(X)+Var(Y)+2Cov(X,Y)
+prepilot.vaishali.se = sqrt((changeoftrend.coeffs[[9]][13]^2) + (changeoftrend.coeffs[[9]][14]^2) + (2*final.modelintjan15$cov[1,2]))
+round(exp(prepilot.vaishali.se),3) #1.055
+prepilot.lower = prepilot.vaishali - 1.96*prepilot.vaishali.se
+prepilot.upper = prepilot.vaishali + 1.96*prepilot.vaishali.se 
+round(exp(prepilot.lower),3) #0.676
+round(exp(prepilot.upper),3) #0.832
+
+# other districts CIs
+other.lower = changeoftrend.coeffs[[9]][1] - 1.96*changeoftrend.coeffs[[9]][13]
+other.upper = changeoftrend.coeffs[[9]][1] + 1.96*changeoftrend.coeffs[[9]][13]
+round(exp(other.lower),3) #0.821
+round(exp(other.upper),3) #0.869
+
+# during-pilot CIs
+duringpilot = changeoftrend.coeffs[[9]][1]+changeoftrend.coeffs[[9]][2]+
+              changeoftrend.coeffs[[9]][3]
+round(exp(duringpilot),3) #0.737
+round((1-exp(changeoftrend.coeffs[[9]][3])) * 100,1) # 1·7% reduction for Vaishali during the 
+pilot.lower = changeoftrend.coeffs[[9]][3] - 1.96*changeoftrend.coeffs[[9]][15]
+pilot.upper = changeoftrend.coeffs[[9]][3] + 1.96*changeoftrend.coeffs[[9]][15]
+round((1-exp(pilot.lower))*100,1) # 18.4%
+round((1-exp(pilot.upper))*100,1) # -18.2%
+
+# intervention jan15 up to dec 17 inclusive
+# Var(X1+X2+X3) = Var(X1)+Var(X2)+Var(X3)+2Cov(X1,X2)+2Cov(X1,X3)+2Cov(X2,X3)
+duringpilot.se = sqrt((changeoftrend.coeffs[[9]][13]^2)+(changeoftrend.coeffs[[9]][14]^2)+(changeoftrend.coeffs[[9]][15]^2)+(2*final.modelintjan15$cov[1,2])+(2*final.modelintjan15$cov[1,3])+(2*final.modelintjan15$cov[2,3]))
+duringpilot.lower = duringpilot-1.96*duringpilot.se
+duringpilot.upper = duringpilot+1.96*duringpilot.se
+round(exp(duringpilot.lower),3) #0.635
+round(exp(duringpilot.upper),3) #0.855
+
+(1-exp(changeoftrend.coeffs[[9]][3])^36)*100 #46.9%
+
+mean(popn.time.matrix[1,])*exp(changeoftrend.coeffs[[9]][7]) # interpreting endemic intercept point estimate on jan12. 0.0002368449/mo in total over the 33 study districts in their lower seasonal months in low endemic districts
+
+exp(changeoftrend.coeffs[[9]][7] + changeoftrend.coeffs[[9]][8])
+sqrt((changeoftrend.coeffs[[9]][19]^2) + (changeoftrend.coeffs[[9]][20]^2) + (2*final.modelintjan15$cov[7,8])) #se
+
+mean(popn.time.matrix[1,])*exp(changeoftrend.coeffs[[9]][7]+changeoftrend.coeffs[[9]][8]+changeoftrend.coeffs[[9]][9]) # 0.96/mo for a high-endemic distt during
+# a peak seasonal month 
+
+#seasonality change
+seasonal.ar = (as.numeric(plot(final.modelintjan15, type = "season")[[2]]))
+round(diff(range(seasonal.ar))/min(seasonal.ar)*100, 3)
+plot(final.modelintjan15, type = "season")
+
+#ne contribution
+round(exp(changeoftrend.coeffs[[9]][6])*100, 3)
+```
+
+```{r final-model-separated-components}
+setwd(fig.loc)
+svg(filename = "figS5decomposition.svg", width = 8, height = 5.3)
+# need to sort out colours
+hhh4addon::plotHHH4lag_fitted(x = final.modelintjan15, units = 33, names = "", col = c("#CC79A8", "#F0E442", "#009E73"), pch = 1, pt.cex = 1, par.settings = list(family = "serif", xaxs = "i", yaxs = "i", mar=c(4.1, 4.1, 1.1, 1.1)), border = c("grey28", "grey28", "grey28"), xlab = "Diagnosis date (from January 2012 until December 2017)", ylab = "Number of VL cases in Vaishali", start = c(2012,1), end = c(2017,12), xlim = c(2012,2017.99), ylim = c(0,264), legend.args = list(legend = c("observed", "neighbourhood (autoregressive, Vaishali's neighbours)", "epidemic (autoregressive, Vaishali)", "endemic (background, Vaishali)"), x=c(2014, 2017.75), y=c(250,190), bty="o", pch = c(1,15,15,15), lty = c(NA,NA,NA,NA), pt.cex = 1.5, inset = 0, text.width=2.6), legend.observed = T)
+dev.off()
+```
+
+```{r model-diagnostics, eval = FALSE}
+final.model.residual <- residuals(final.modelintjan15)
+setwd(fig.loc)
+svg(filename = "figS6heteroskedastic.svg", width = 8, height = 5.3)
+par(family = "serif")
+plot(final.modelintjan15$fitted.values[,33],final.model.residual[,33], 
+     xlab = 'Fitted values', xlim = c(0,120), ylim = c(-3.2, 3.2), yaxt = "n",
+     ylab = 'Model residuals (standardised)', xaxs = "i", yaxs = "i")
+axis(2, at = c(-3,-1,0,1,3), labels = c("-3","-1","0","1","3"), las = 2)
+abline(h = 0, lwd = 2, lty = 2)
+dev.off()
+```
+Heteroskedasticity present so high variance when trying to predict low cases. But can't change variables or introduce a new one. May indicate that a subdistrict model with few cases may be difficult to fit.
+
+```{r model-sensitivity-to-int.start.month}
+i <- 1
+X <- matrix(NA, nrow = 12, ncol = 13)
+row.names(X) <- c('exp(ar.1)', 'exp(ar.vaishali)', 'exp(ar.intervention)', 'exp(ar.sin(2 * pi * t/12))', 'exp(ar.cos(2 * pi * t/12))', 'exp(ne.1)', 'exp(end.1)', 'exp(end.end.HL)', 'exp(end.sin(2 * pi * t/12))', 'exp(end.cos(2 * pi * t/12))',  'overdisp.H', 'overdisp.L')
+# month 33=sep14; 37=jan15; 45=sep15
+for (month in 33:45) {
+intervention <- calcDxconst(month)
+x <- list(  
+  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+y <- hhh4_lag(stsObj = ka.sts, control = x)
+params <- summary(y, idx2Exp = T, amplitudeShift = T)
+X[,i] <- as.numeric(params$fixef[,1])
+i <- i + 1
+}
+signif(apply(X, 1, min),digits = 3) # find min of each parameter
+signif(X[,5],digits = 3) # print the jan15 value
+signif(apply(X, 1, max),digits = 3) # find max of each parameter
+
+#intervention term varies the most, the rest just by a few percent except end.1.
+(1.11-0.974)/0.974*100 #*14%
+```
+
+To assess select the best predictive model to simulate the counterfactual and intervention model we assessed their predictive performance. The test data was Jan 2016-Dec 2016. 2015 couldn't be used due to the 12 lags required. The simulation period was 2016-7.
+We use our predictivePower() function for this purpose. When doing predictive performance comparison tests using model scores we use the ranked probability score (RPS).
+
+```{r predictive-model}
+predictivePower <- function(null.model, new.model, seed){
+  time.period <- 48 # convention requires us to give the preceding month number to Jan 2016 i.e. 49-1=48
+  models2compare <- c('null.model', 'new.model')
+  models.pred <- lapply(mget(models2compare), oneStepAhead_hhh4lag, 
+                        refit_par_lag = FALSE, tp = time.period, type = "rolling",                                which.start = "current", verbose = FALSE)
+  SCORES <- c("logs", "rps", "dss", "ses")
+  models.scores <- lapply(models.pred, scores, which = SCORES, individual = T)
+  t(sapply(models.scores, colMeans, dims = 2))
+  # hist(models.scores$null.model[,33, 2] - models.scores$new.model[,33, 2]) # as often this didn't look very normal I used the permutation test
+  set.seed(seed)
+  permut.test <- sapply(SCORES, function (score) permutationTest(
+  models.scores$null.model[, , score],
+  models.scores$new.model[, , score],
+  nPermutation = 100000))
+  permut.test.rps.pvalue <- as.numeric(permut.test[2,2])
+return(permut.test.rps.pvalue)
+}
+
+# reference(base model) vs pilot and counterfactual on predictive performance
+set.seed(2030)
+models2compare = c("M1.base", "final.modelARseas", 
+                   "final.modelARseasnopilot")
+VLpred <- lapply(mget(models2compare), oneStepAhead_hhh4lag, 
+                        tp = 37, type = "rolling", which.start = "current")
+SCORES <- c("logs", "rps", "dss", "ses")
+VLscores = lapply(VLpred, scores, which = SCORES, individual = TRUE)
+t(sapply(VLscores, colMeans, dims = 2))  
+predictivePower(final.modelARseas, M1.base, seed = 2030) # 
+
+# final model using diagnostic SI distrib. vs different distributed-lag
+# formulations
+
+optimGeo <- function(parlag.optim) {
+intervention = calcDxconst(37, "geo", par_lag = parlag.optim)
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = geometric_lag,
+  par_lag = parlag.optim,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+model.12geo <- hhh4_lag(stsObj = ka.sts, control = x)
+pvalue = predictivePower(final.modelintjan15, model.12geo, seed = 1492) # same seed makes sense as want to be comparing to the same simulations of final.model
+  return(pvalue)
+}
+geo.optimised = optim(par = 0, fn = optimGeo, method = "BFGS")
+# 9.9999e-06, limited by predictive power function at 100K tests
+# par_value = 1.489985
+
+optimPoisson <- function(parlag.optim) {
+intervention = calcDxconst(37, "poisson", par_lag = parlag.optim)
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = poisson_lag,
+  par_lag = parlag.optim,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+model.12poisson <- hhh4_lag(stsObj = ka.sts, control = x)
+pvalue = predictivePower(final.modelintjan15, model.12poisson, seed = 1492) # same seed makes sense as want to be comparing to the same simulations of final.model
+  return(pvalue)
+}
+poisson.optimised = optim(par = 0, fn = optimPoisson, method = "BFGS")
+# 9.9999e-06, limited by predictive power function at 100K tests
+# par_value = -1.224988
+
+optimLinear <- function(parlag.optim) {
+intervention = calcDxconst(37, "linear", par_lag = parlag.optim)
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = linear_lag,
+  par_lag = parlag.optim,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+model.12linear <- hhh4_lag(stsObj = ka.sts, control = x)
+pvalue = predictivePower(final.modelintjan15, model.12linear, seed = 1492) # same seed makes sense as want to be comparing to the same simulations of final.model
+  return(pvalue)
+}
+linear.optimised = optim(par = 0, fn = optimLinear, method = "BFGS")
+# 9.9999e-06, limited by predictive power function at 100K tests
+# par_value = 0
+
+intervention = calcDxconst(37, "geo", par_lag = 1.489985)
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = geometric_lag,
+  par_lag = 1.489985,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+model.12geo <- hhh4_lag(stsObj = ka.sts, control = x)
+intervention = calcDxconst(37, "poisson", par_lag = -1.224988)
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = poisson_lag,
+  par_lag = -1.224988,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+model.12poisson <- hhh4_lag(stsObj = ka.sts, control = x)
+intervention = calcDxconst(37, "linear", par_lag = 0)
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = linear_lag,
+  par_lag = 0,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+model.12linear <- hhh4_lag(stsObj = ka.sts, control = x)
+
+models2compare = c("model.12poisson","model.12linear", "model.12geo", 
+                   "final.modelintjan15")
+VLpred <- lapply(mget(models2compare), oneStepAhead_hhh4lag, 
+                        tp = 48, type = "rolling", which.start = "current")
+SCORES <- c("logs", "rps", "dss", "ses")
+VLscores = lapply(VLpred, scores, which = SCORES, individual = TRUE)
+t(sapply(VLscores, colMeans, dims = 2)) # final.modelintjan15 better than all in predictive performance
+
+par(mfrow = c(1,4))
+for (m in models2compare){
+  surveillance::pit(VLpred[[m]], plot = list(ylim = c(0, 1.4), main = m)) 
+}
+# some overdispersion in the final model (but it's better than the first 3) but there's
+# nothing we can do about that.
+setwd(fig.loc)
+svg(filename = "figS10PIT.svg", width = 8, height = 5.3)
+par(family = "serif")
+surveillance::pit(VLpred[[4]], plot = list(ylim = c(0, 1.3), xaxs = "i", 
+                                           yaxs = "i", xaxt = "n", yaxt = "n"))
+axis(1, at = seq(0,1,0.2), labels = c(0,0.2,0.4,0.6,0.8,1))
+axis(2, at = c(0,0.4,0.8,1,1.2), labels = c(0,0.4,0.8,1,1.2), las = 2)
+dev.off()
+```
+
+```{r final-model-fanplots}
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+final.modelwithout <- hhh4_lag(stsObj = ka.sts, control = x)
+final.modelwithout$convergence
+summary(final.modelwithout, idx2Exp = T, amplitudeShift = T) #AIC 10515.96
+
+time.period <- c(48,71) # 48 matches the value in predictivePower()
+
+final.model.oneStepAhead <- hhh4addon::oneStepAhead_hhh4lag(final.modelintjan15, time.period, type="rolling")
+final.model.oneStepAhead$allConverged
+colMeans(scores(final.model.oneStepAhead))
+P <- seq(0.01, 0.99, by = 0.01)
+Q <- quantile(final.model.oneStepAhead, probs = P, type = 8)
+Q <- as.matrix(Q[,33,])
+without.oneStepAhead <- hhh4addon::oneStepAhead_hhh4lag(final.modelwithout, time.period, type="rolling")
+without.oneStepAhead$allConverged
+colMeans(scores(without.oneStepAhead))
+Q.1 <- quantile(without.oneStepAhead, probs = P, type = 8)
+Q.1 <- as.matrix(Q.1[,33,])
+
+setwd(fig.loc)
+svg(filename = "figS8a_and_b_fanplots.svg", width = 13.66, height = 7.68)
+par(family = "serif", mfrow = c(1,2))
+fanplot(quantiles = Q.1, probs = P, observed = ka.sts@observed[seq.int((time.period[1]+1), (time.period[2]+1), 1),33], start = 48, fan.args = list(fan.col = colorRampPalette(c("red", "white"), space = "rgb")), xlim = c(48,71), ylim = c(0,48), xlab = "", ylab = "Number of VL cases in Vaishali", family = "serif", xaxs = "i", yaxs = "i", key.args = list(start = 69, space = 0.7, ylim = c(30,45)), main = "", xaxt = "n", yaxt = "n")
+axis(1, at = c(48,60,71), labels = c("Jan-16", "Jan-17", "Dec-17")) # note that 71 is Dec-17 on this shifted scale
+axis(2, at = c(0,10,20,30,40), labels = c("0","10","20","30","40"), las = 2)
+
+fanplot(quantiles = Q, probs = P, observed = ka.sts@observed[seq.int((time.period[1]+1), (time.period[2]+1), 1),33], start = 48, fan.args = list(fan.col = colorRampPalette(c("red", "white"), space = "rgb")), xlim = c(48,71), ylim = c(0,48), xlab = "", ylab = "Number of VL cases in Vaishali", family = "serif", xaxs = "i", yaxs = "i", key.args = list(start = 69, space = 0.7, ylim = c(30,45)), main = "", xaxt = "n", yaxt = "n")
+axis(1, at = c(48,60,71), labels = c("Jan-16", "Jan-17", "Dec-17")) # note that 71 is Dec-17 on this shifted scale
+axis(2, at = c(0,10,20,30,40), labels = c("0","10","20","30","40"), las = 2)
+dev.off()
+```
+
+# Estimating cases averted for Vaishali
+
+1. Visual check the 'no-change-of-trend' model can predict 2014 well based on 2013 fit.
+2. Fit 'no-change-of-intercept' model for Jan 2013-Dec 2014
+3. Predict Jan15-Dec17 for Vaishali
+4. Sum over all months the following => the difference between 'predicted noCOI' & 'actuals COI' for Jan15 to Dec17 inclusive for Vaishali only
+
+```{r cases-averted-step1}
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:24)# fit to 2013 only
+noint.2013 <- hhh4addon::hhh4_lag(stsObj = ka.sts, control = x)
+summary(noint.2013, amplitudeShift = T, idx2Exp = T)
+time.period <- c(24,35) # 2014 is the test set
+y.pred <- oneStepAhead_hhh4lag(result = noint.2013, tp = time.period, type = 'rolling') # breaks, convergence problems
+setwd(fig.loc)
+svg(filename = "figS7withoutpredperf.svg", width = 13.66, height = 7.68)
+par(family = "serif")
+plot(ka.sts@observed[,33], xlim = c(1,36), ylim = c(0,265), xaxs = 'i', xaxt = "n", yaxs = 'i', type = 'l', col = 'black', lwd = 2, family = "serif", main = "", xlab = 'Diagnosis month (from 2012-2014)', ylab = 'Number of VL cases in Vaishali', yaxt = "n")
+lines(12:24, c(NA,noint.2013$fitted.values[1:12,33]), type = 'l', col = 'red', lwd = 2, lty = 1)
+lines(c(rep(NA,24),y.pred$pred[,33]), type = 'l', col = 'red', lwd = 2, lty = 2)
+axis(1, at = c(1,seq(5,33,4),36), labels = c("Jan-12", "May-12", "Sep-12", "Jan-13", "May-13", "Sep-13", "Jan-14", "May-14", "Sep-14", "Dec-14"))
+axis(2, at = c(0,50,100,150,200,250), 
+     labels = c("0","50","100","150","200","250"), las = 2)
+abline(v = 24.5, col = "gray")
+legend(x = c(26, 35), y = c(200, 240), text.width = 5, legend=c('observed', '2013 fit (12 months)', '2014 prediction (12 months)'), col=c('black', 'red', 'red'), lty=c(1,1,2), lwd=2)
+dev.off()
+```
+Looks like a reasonable fit and prediction. Now do steps 2-4:
+
+```{r cases-averted-step2to4, eval=FALSE, include=TRUE}
+gc() # for high no.sims we want to clear out the memory
+starting.seed = 16092018-17:25
+ptm <- proc.time()
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:36) # fit to month before int
+noint.Dec14 <- hhh4_lag(stsObj = ka.sts, control = x) # counterfactual
+noint.Dec14$convergence
+summary(noint.Dec14, amplitudeShift = T, idx2Exp = T)
+no.sims <- 100000 
+y.start <- surveillance::observed(ka.sts)[25:36, ] # y.start=Jan15, range as it's distributed lags
+y.sim.noint.2012Dec14 <- simulate(noint.Dec14, nsim = no.sims, seed = starting.seed, subset = 37:72, y.start = y.start)
+y.sim.final.model.pred <- simulate(final.modelARseas, nsim = no.sims, seed = starting.seed, subset = 37:72, y.start = y.start) # note both simulations get the same starting seed
+y.sim.diff <- y.sim.noint.2012Dec14[,33,] - y.sim.final.model.pred[,33,]
+averted <- colSums(y.sim.diff)
+# hist(averted, main = 'Distribution of simulated estimates for cases averted (median = 569 cases)', xlab = 'KA cases averted', ylab = 'Number of simulations')
+averted.median <- round(median(averted)) # median is better to report. 98
+summary(averted)
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# -838  -41.00   96.00   96.41  233.00 1070.00
+averted.mean = round(mean(averted))
+round(mean(averted) - sd(averted)/sqrt(no.sims)*1.96) #95
+round(mean(averted) + sd(averted)/sqrt(no.sims)*1.96) #98
+sum(averted < 0) # no of sims with a negative effect, 31712/100Ksims
+proc.time() - ptm # 80 mins
+
+#check in averted cases over time
+averted.cumsum.t = apply(y.sim.diff, 2, cumsum)
+median.averted.t = apply(averted.cumsum.t, 1, summary)
+setwd(fig.loc)
+svg(filename = "fig4casesaverted.svg", width = (9*2/2.5), height = (6*2/2.5))
+par(family = "serif")
+plot(median.averted.t[3,], type = "l", ylim = c(-74,237), xaxs = "i", yaxs = "i", 
+     xaxt = "n",
+     xlab = "Intervention month", ylab = "VL cases averted", col = "#56B4E9", lwd = 2)
+lines(median.averted.t[2,], lty = 2, lwd = 4, col = "#56B4E9")
+lines(median.averted.t[5,], lty = 2, lwd = 4, col = "#56B4E9")
+abline(h=0)
+legend(x = c(2.5, 16), y = c(150, 210), text.width = 5, legend=c('median', 'upper/lower quartiles'), col=c("#56B4E9", "#56B4E9"), lty=c(1,2), lwd=4)
+axis(1, at = c(1,13,25,36), labels = c("Jan-15","Jan-16","Jan-17","Dec-17"))
+dev.off()
+
+y.sim.diff2 = y.sim.noint.2012Dec14[,33,] - y.sim.final.model.pred[,33,]
+avertedsum = colSums(y.sim.diff2)
+countersum = colSums(y.sim.noint.2012Dec14[1:36,33,])
+median(avertedsum/countersum*100) # 10.3% 
+
+sum(ka.sts@observed[61:72,33])/popn.time.matrix[72,33]*10000 # VL case numbers in 2017 for section 4.3 'Control policy recommendations' 0.4144765
+
+# what % extra reduction vs counterfactual, by using y-o-y decreases
+modelcases15 = colSums(y.sim.final.model.pred[1:12,33,])
+countercases15 = colSums(y.sim.noint.2012Dec14[1:12,33,])
+
+modelcases16 = colSums(y.sim.final.model.pred[13:24,33,])
+extra16 = (modelcases15 - modelcases16)/modelcases15
+countercases16 = colSums(y.sim.noint.2012Dec14[13:24,33,])
+counter16 = (countercases15 - countercases16)/countercases15
+summary(extra16/counter16*100-100) #16.89%
+
+modelcases17 = colSums(y.sim.final.model.pred[25:36,33,])
+extra17 = (modelcases16 - modelcases17)/modelcases16
+countercases17 = colSums(y.sim.noint.2012Dec14[25:36,33,])
+counter17 = (countercases16 - countercases17)/countercases16
+summary(extra17/counter17*100-100) #30.51%
+```
