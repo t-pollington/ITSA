@@ -187,64 +187,66 @@ graph
 dev.off()
 ```
 
-```{r rank-changes-of-yoy-absolute-cases-or-yoy-monthly-changes}
+```{r rank-changes-of-yoy-incidence-or-monthly-percent}
 # rank change analysis
 df3 <- df[,c(1:33,133)]
 # yoy calc for 'during intervention'
 for (i in 1:33) {
-  district.yoy <- c(rep(NA,36),df3[37:nrow(df3),i] - df3[25:(nrow(df3)-12),i] / 
+  district.yoy <- c(rep(NA,36),(df3[37:nrow(df3),i] - df3[25:(nrow(df3)-12),i]) / 
                       df3[25:(nrow(df3)-12),i]*100)
   df3 <- cbind(df3,district.yoy)
 }
 colnames(df3)[35:67] <- paste0(colnames(df3)[1:33],'.yoy')
 vaishali.yoy.rank <- NULL
 for (i in 37:nrow(df3)) {
-  vaishali.yoy.rank <- c(vaishali.yoy.rank,as.numeric(rank(df3[i,35:67])[32]))
+  vaishali.yoy.rank <- c(vaishali.yoy.rank,as.numeric(rank(df3[i,35:67]/popn.time.matrix[i,])[32]))
 }
-round(mean(vaishali.yoy.rank)) # 19th largest VL reduction averaged over 36 monthly y-o-y 
+round(mean(vaishali.yoy.rank)) # 11th largest VL reduction averaged over 36 monthly y-o-y 
 # percentages (1st=largest negative change) during 2015-7
 for (i in 1:33) {
-  district.yoy.pre <- c(rep(NA,12),df3[13:36,i] - df3[1:(36-12),i] / 
+  district.yoy.pre <- c(rep(NA,12),(df3[13:36,i] - df3[1:(36-12),i]) / 
                           df3[1:(36-12),i]*100,rep(NA,36))
   df3 <- cbind(df3,district.yoy.pre)
 }
 colnames(df3)[68:100] <- paste0(colnames(df3)[1:33],'.yoy.pre')
 vaishali.yoy.pre.rank <- NULL
 for (i in 13:36) {
-  vaishali.yoy.pre.rank <- c(vaishali.yoy.pre.rank,as.numeric(rank(df3[i,68:100])[32]))
+  vaishali.yoy.pre.rank <- c(vaishali.yoy.pre.rank,as.numeric(rank(df3[i,68:100]/popn.time.matrix[i,])[32]))
 }
-round(mean(vaishali.yoy.pre.rank)) # 26th largest VL reduction averaged over 24 monthly 
+round(mean(vaishali.yoy.pre.rank)) # 11th largest VL reduction averaged over 24 monthly 
 # y-o-y percentages (1st=largest negative change) during 2013-4
 
 # Wilcoxon two-sample test with continuity correction
 x <- vaishali.yoy.pre.rank
 y <- vaishali.yoy.rank
-wilcox.test(x, y, alternative = "t") #p<1e-07
+wilcox.test(x, y, alternative = "t") # p = 0.8976
 
-vaishali.cases.rank <- NULL
+vaishali.incid.rank <- NULL
 for (i in 37:72) {
-  vaishali.cases.rank <- c(vaishali.cases.rank,
-                           as.numeric(rank(-1 * (rank(df3[i,1:33])))[32]))
+  vaishali.incid.rank <- c(vaishali.incid.rank,
+                           as.numeric(rank(-1 * (rank(df3[i,1:33]/popn.time.matrix[i,])))[32]))
 }
-round(mean(vaishali.cases.rank)) # 9th highest VL incidence averaged over 36 monthly 
-# incidence (1st=largest VL incidence) during 2015-7
-vaishali.cases.pre.rank <- NULL
+round(mean(vaishali.incid.rank)) # 9th highest VL incidence averaged over 36 mo
+# (1st=largest VL incidence) during 2015-7
+vaishali.incid.pre.rank <- NULL
 for (i in 1:36) {
-  vaishali.cases.pre.rank <- c(vaishali.cases.pre.rank,
-                               as.numeric(rank(-1 * (rank(df3[i,1:33])))[32]))
+  vaishali.incid.pre.rank <- c(vaishali.incid.pre.rank,
+                               as.numeric(rank(-1 * (rank(df3[i,1:33]/popn.time.matrix[i,])))[32]))
 }
-round(mean(vaishali.cases.pre.rank)) # 3rd highest VL incidence averaged over 36 monthly 
+round(mean(vaishali.incid.pre.rank)) # 3rd highest VL incidence averaged over 36 monthly 
 # incidences (1st=largest VL incidence) during 2012-4
 # Wilcoxon two-sample test with continuity correction
-x <- vaishali.cases.pre.rank
-y <- vaishali.cases.rank
-wilcox.test(x, y, alternative = "t") # p<1e-09
+x <- vaishali.incid.pre.rank
+y <- vaishali.incid.rank
+wilcox.test(x, y, alternative = "t") # p < 1e-10
 ```
-Vaishali had the 19th largest (1st=largest negative change) VL reduction, averaged over 36 monthly ranks based on year-on-year percentages during 2015-7, versus before the intervention having only the 26th largest VL reduction averaged over 24 months during 2013-4. Wilcoxon two-sample one-tailed test with continuity correction, p=1e-07.
+Vaishali saw no change in having the 11th largest (1st=largest negative change) VL reduction, averaged over 36 monthly ranks based on year-on-year percentages during 2015-7, versus 11th largest VL reduction averaged over 24 months during 2013-4. Wilcoxon two-sample one-tailed test with continuity correction, p = 0.8976.
 
-It had the 9th highest (1st=highest) VL incidence averaged over 36 monthly incidence ranks during 2015-7, versus before the intervention when it had the 3rd highest VL incidence averaged over 36 monthly incidences (1st=highest VL incidence) during 2012-4. Same Wilcoxon test, p<1e-09
+It had the 9th highest (1st=highest) VL incidence averaged over 36 monthly incidence ranks during 2015-7, versus before the intervention when it had the 3rd highest VL incidence averaged over 36 monthly incidences (1st=highest VL incidence) during 2012-4. Same Wilcoxon test, p < 1e-10
 
-Considering these two results it appears that during the intervention period Vaishali changed significantly. In the next section we will use a time-series model to account for factors other than the intervention effect that may have caused this to come about.
+Although the first result appears to indicate no change in % reduction wrt other districts, while the second a significant change in incidence with respect to the other districts, together these are not a contradiction. It is possible to change from 12th to 11th out of 33 districts in the first metric while improving 3rd to 9th/33 in the other metric; since *some* of the 1st to 10th districts reducing more in % than Vaishali before the pilot in the first metric, could have switched to 12th to 33rd places during the pilot, leading them to newly appear in the 1st to 8th highest incidences in the second metric during the pilot.
+
+In the next section we will use a time-series model to account for factors other than the intervention effect that may have caused this to come about.
 
 ## Creating ka.sts object
 ```{r ka.sts-creation, include=FALSE}
@@ -762,12 +764,12 @@ sqrt((changeoftrend.coeffs[[9]][19]^2) + (changeoftrend.coeffs[[9]][20]^2) + (2*
 mean(popn.time.matrix[1,])*exp(changeoftrend.coeffs[[9]][7]+changeoftrend.coeffs[[9]][8]+changeoftrend.coeffs[[9]][9]) # 0.96/mo for a high-endemic distt during
 # a peak seasonal month 
 
-#seasonality change
+# seasonality change
 seasonal.ar = (as.numeric(plot(final.modelintjan15, type = "season")[[2]]))
 round(diff(range(seasonal.ar))/min(seasonal.ar)*100, 3)
 plot(final.modelintjan15, type = "season")
 
-#ne contribution
+# ne contribution
 round(exp(changeoftrend.coeffs[[9]][6])*100, 3)
 ```
 
