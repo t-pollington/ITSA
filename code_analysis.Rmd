@@ -799,11 +799,14 @@ coef.table[1:5,2] = changeoftrend.coeffs[[9]][c(13,14,15,19,20)]
 coef.table # jackmean is close to modelmean, however jacksd underestimates variance from 1-3 orders of magnitude! Alas it is the only solution we have, so we warn that variances computed from the jacksd estimator are likely to be underestimates.
 
 # bootstrap the residuals
+thisistheseed = 8
+elm = matrix(nrow = 12, ncol = 2)
+coef.list = rep(list(elm),250)
 ptm <- proc.time()
-set.seed(seed = 2)
+set.seed(seed = thisistheseed)
 epsilon = residuals(final.modelintjan15)
 nbstrap = 1
-while (nbstrap < 11) {
+while (nbstrap < 251) {
   epsilon.bstrap = sample(epsilon, replace = FALSE)
   y.bstrap = round(fitted(final.modelintjan15) + epsilon.bstrap)
   y.bstrap[y.bstrap<0] = 0 # prevent negative values
@@ -828,7 +831,7 @@ while (nbstrap < 11) {
   } 
 }
 proc.time() - ptm
-save(coef.list, file = "coef.list.bstrap.RData")
+save(coef.list, file = paste0("coef.list.bstrap",thisistheseed,".RData"))
 
 # pre-pilot Vaishali
 prepilot.vaishali = changeoftrend.coeffs[[9]][1] + changeoftrend.coeffs[[9]][2]
