@@ -562,7 +562,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 M1.base = hhh4_lag(stsObj = ka.sts, control = x)
-summary(M1.base, idx2Exp = T) # AIC: 10882.79
+summary(M1.base, idx2Exp = TRUE) # AIC: 10882.79
 
 # base model with end.HL
 x <- list(
@@ -576,7 +576,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 M1.base = hhh4_lag(stsObj = ka.sts, control = x)
-summary(M1.base, idx2Exp = T) # AIC: 10886.67
+summary(M1.base, idx2Exp = TRUE) # AIC: 10886.67
 
 # seasonality in END
 x <- list(
@@ -590,7 +590,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 M1.ENDseas = hhh4_lag(stsObj = ka.sts, control = x)
-summary(M1.ENDseas, idx2Exp = T) # AIC: 10721.52
+summary(M1.ENDseas, idx2Exp = TRUE) # AIC: 10721.52
 
 # seasonality in END + AR
 x <- list(
@@ -604,7 +604,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 final.modelARseas <- hhh4_lag(stsObj = ka.sts, control = x)
-summary(final.modelARseas, idx2Exp = T) # AIC: 10517.49. 
+summary(final.modelARseas, idx2Exp = TRUE) # AIC: 10517.49. 
 # 10517.49-10886.67 = -369 (rounded)
 
 # quick check with triple overdisp
@@ -619,7 +619,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 final.modelARseas <- hhh4_lag(stsObj = ka.sts, control = x)
-summary(final.modelARseas, idx2Exp = T) # AIC: 10516.28 reduced a little bit
+summary(final.modelARseas, idx2Exp = TRUE) # AIC: 10516.28 reduced a little bit
 # need to investigate predictive performance
 
 # plus end.VHHL
@@ -636,7 +636,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 final.modelARseas <- hhh4_lag(stsObj = ka.sts, control = x)
-summary(final.modelARseas, idx2Exp = T) # 10541.94, much higher with tri-endemic
+summary(final.modelARseas, idx2Exp = TRUE) # 10541.94, much higher with tri-endemic
 
 x <- list(
   ar = list(f = addSeason2formula(~ 1 + vaishali, period = ka.sts@freq)),
@@ -649,7 +649,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 final.modelARseasnopilot <- hhh4_lag(stsObj = ka.sts, control = x)
-summary(final.modelARseasnopilot, idx2Exp = T) # AIC: 10515.53.
+summary(final.modelARseasnopilot, idx2Exp = TRUE) # AIC: 10515.53.
 ```
 ```{r VLHIVTBprop, eval = F}
 # does VLHIVTBprop vary with time?
@@ -692,7 +692,7 @@ x <- list(
   subset = 13:nrow(ka.sts))
 intsensitiv <- hhh4_lag(stsObj = ka.sts, control = x)
 X[i] <- month
-Y[i] <- summary(intsensitiv, idx2Exp = T, amplitudeShift = T)$AIC
+Y[i] <- summary(intsensitiv, idx2Exp = TRUE, amplitudeShift = TRUE)$AIC
 i <- i + 1
 }
 plot(X,Y, main = 'Goodness of fit', xlab = 'Month number s(33 = September 2014)', ylab = 'AIC', type = "l") 
@@ -714,13 +714,80 @@ x <- list(
   subset = 13:nrow(ka.sts))
 final.modelintjan15 <- hhh4_lag(stsObj = ka.sts, control = x)
 final.modelintjan15$convergence
-summary(final.modelintjan15, idx2Exp = T, amplitudeShift = T) #AIC 10517.49
-changeoftrend.coeffs <- summary(final.modelintjan15) # work in model (log) link space
+summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10517.49
+changeoftrend.coeffs <- summary(final.modelintjan15, idx2Exp = TRUE) # work in exp() space
+
+# get jackknife estimates for particular parameters requiring cov(X^2,Y^2) which is unobtainable from the hhh4-fitted model object i.e. final.modelintjan15
+
+# create one-less ka.sts
+sum(ka.sts@observed>0) # 1966 ">0" district-time observations are available
+N.index = which(ka.sts@observed>0)
+elm = matrix(nrow = 12, ncol = 2)
+coef.list = rep(list(elm),1966)
+ptm <- proc.time()
+for (i in 1:1966) {
+  temp.ka.sts = ka.sts
+  temp.ka.sts@observed[N.index[i]] = temp.ka.sts@observed[N.index[i]] - 1
+  # also remove from populationFrac too. Thus our interpretation of the jackknife here isn't just remove a case but also correctly update other elements of the STS object for conservation of human numbers!
+  temp.ka.sts@populationFrac[N.index[i]] = temp.ka.sts@populationFrac[N.index[i]] - 1
+  x <- list(
+    ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = temp.ka.sts@freq)),
+    end = list(f = addSeason2formula(~ 1 + end.HL, period = temp.ka.sts@freq), offset = population(temp.ka.sts)),
+    ne = list(f = ~ 1, weights = neighbourhood(temp.ka.sts) == 1),
+    family = HL.factor,
+    funct_lag = Dx_lag,
+    par_lag = 1,
+    min_lag = 1,
+    max_lag = 12,
+    subset = 13:nrow(temp.ka.sts)
+  )
+  temp.hhh4 <- hhh4_lag(stsObj = temp.ka.sts, control = x)
+  if (temp.hhh4$convergence) {
+    coef.list[[i]] = summary(temp.hhh4)$fixef
+  } else {
+    coef.list[[i]] = NA
+  }
+}
+proc.time() - ptm # ~ 634s
+save(coef.list, file = "coef.list.RData")
+
+# table of coeffs
+coef.table = matrix(nrow = 8, ncol = 4, dimnames = list(c("other","V","pilot","end.1","end.HL.HL","other*V","other*V*pilot","end.1*end.HL.HL"),c("modelmean","modelsd","jackmean","jacksd")))
+coef.vector = unlist(coef.list)
+other.vector = coef.vector[seq.int(from = 1, to = 47184, by = 24)]
+V.vector = coef.vector[seq.int(from = 2, to = 47184, by = 24)]
+pilot.vector = coef.vector[seq.int(from = 3, to = 47184, by = 24)]
+end.1.vector = coef.vector[seq.int(from = 7, to = 47184, by = 24)]
+end.HL.HL.vector = coef.vector[seq.int(from = 8, to = 47184, by = 24)]
+othertimesV = other.vector + V.vector
+othertimesVtimespilot = other.vector + V.vector + pilot.vector
+end.1timesend.HL.HL = end.1.vector + end.HL.HL.vector
+all(!is.na(coef.vector)) # PASS, all model runs converged
+coef.table[1,3] = mean(exp(other.vector))
+coef.table[2,3] = mean(exp(V.vector))
+coef.table[3,3] = mean(exp(pilot.vector))
+coef.table[4,3] = mean(exp(end.1.vector))
+coef.table[5,3] = mean(exp(end.HL.HL.vector))
+coef.table[6,3] = mean(exp(othertimesV))
+coef.table[7,3] = mean(exp(othertimesVtimespilot))
+coef.table[8,3] = mean(exp(end.1timesend.HL.HL))
+coef.table[1,4] = sd(exp(other.vector))
+coef.table[2,4] = sd(exp(V.vector))
+coef.table[3,4] = sd(exp(pilot.vector))
+coef.table[4,4] = sd(exp(end.1.vector))
+coef.table[5,4] = sd(exp(end.HL.HL.vector))
+coef.table[6,4] = sqrt(mean(exp(2*other.vector + 2*V.vector)) - (mean(exp(other.vector+V.vector)))^2)
+coef.table[7,4] = sqrt(mean(exp(2*other.vector + 2*V.vector + 2*pilot.vector)) - (mean(exp(other.vector + V.vector + pilot.vector)))^2)
+coef.table[8,4] = sqrt(mean(exp(2*end.1.vector + 2*end.HL.HL.vector)) - (mean(exp(end.1.vector + end.HL.HL.vector)))^2)
+coef.table[1:5,1] = changeoftrend.coeffs[[9]][c(1,2,3,7,8)]
+coef.table[1:5,2] = changeoftrend.coeffs[[9]][c(13,14,15,19,20)]
+coef.table # jackmean is close to modelmean, however jacksd underestimates variance from 1-3 orders of magnitude! Alas it is the only solution we have, so we warn that variances computed from the jacksd estimator are likely to be underestimates.
+
+# bootstrap
 
 # pre-pilot Vaishali
 prepilot.vaishali = changeoftrend.coeffs[[9]][1] + changeoftrend.coeffs[[9]][2]
-round(exp(prepilot.vaishali),3) # Vaishali-specific AR term for before the intervention was 
-# applied 0·75
+round(exp(prepilot.vaishali),3) # Vaishali-specific pre-pilot AR term 0·75
 # pre-pilot CIs
 # Var(X+Y) = Var(X)+Var(Y)+2Cov(X,Y)
 prepilot.vaishali.se = sqrt((changeoftrend.coeffs[[9]][13]^2) + (changeoftrend.coeffs[[9]][14]^2) + (2*final.modelintjan15$cov[1,2]))
@@ -777,7 +844,7 @@ round(exp(changeoftrend.coeffs[[9]][6])*100, 3)
 setwd(fig.loc)
 svg(filename = "figS5decomposition.svg", width = 8, height = 5.3)
 # need to sort out colours
-hhh4addon::plotHHH4lag_fitted(x = final.modelintjan15, units = 33, names = "", col = c("#CC79A8", "#F0E442", "#009E73"), pch = 1, pt.cex = 1, par.settings = list(family = "serif", xaxs = "i", yaxs = "i", mar=c(4.1, 4.1, 1.1, 1.1)), border = c("grey28", "grey28", "grey28"), xlab = "Diagnosis date (from January 2012 until December 2017)", ylab = "Number of VL cases in Vaishali", start = c(2012,1), end = c(2017,12), xlim = c(2012,2017.99), ylim = c(0,264), legend.args = list(legend = c("observed", "neighbourhood (autoregressive, Vaishali's neighbours)", "epidemic (autoregressive, Vaishali)", "endemic (background, Vaishali)"), x=c(2014, 2017.75), y=c(250,190), bty="o", pch = c(1,15,15,15), lty = c(NA,NA,NA,NA), pt.cex = 1.5, inset = 0, text.width=2.6), legend.observed = T)
+hhh4addon::plotHHH4lag_fitted(x = final.modelintjan15, units = 33, names = "", col = c("#CC79A8", "#F0E442", "#009E73"), pch = 1, pt.cex = 1, par.settings = list(family = "serif", xaxs = "i", yaxs = "i", mar=c(4.1, 4.1, 1.1, 1.1)), border = c("grey28", "grey28", "grey28"), xlab = "Diagnosis date (from January 2012 until December 2017)", ylab = "Number of VL cases in Vaishali", start = c(2012,1), end = c(2017,12), xlim = c(2012,2017.99), ylim = c(0,264), legend.args = list(legend = c("observed", "neighbourhood (autoregressive, Vaishali's neighbours)", "epidemic (autoregressive, Vaishali)", "endemic (background, Vaishali)"), x=c(2014, 2017.75), y=c(250,190), bty="o", pch = c(1,15,15,15), lty = c(NA,NA,NA,NA), pt.cex = 1.5, inset = 0, text.width=2.6), legend.observed = TRUE)
 dev.off()
 ```
 
@@ -813,7 +880,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 y <- hhh4_lag(stsObj = ka.sts, control = x)
-params <- summary(y, idx2Exp = T, amplitudeShift = T)
+params <- summary(y, idx2Exp = TRUE, amplitudeShift = TRUE)
 X[,i] <- as.numeric(params$fixef[,1])
 i <- i + 1
 }
@@ -835,7 +902,7 @@ predictivePower <- function(null.model, new.model, seed){
   models.pred <- lapply(mget(models2compare), oneStepAhead_hhh4lag, 
                         refit_par_lag = FALSE, tp = time.period, type = "rolling",                                which.start = "current", verbose = FALSE)
   SCORES <- c("logs", "rps", "dss", "ses")
-  models.scores <- lapply(models.pred, scores, which = SCORES, individual = T)
+  models.scores <- lapply(models.pred, scores, which = SCORES, individual = TRUE)
   t(sapply(models.scores, colMeans, dims = 2))
   # hist(models.scores$null.model[,33, 2] - models.scores$new.model[,33, 2]) # as often this didn't look very normal I used the permutation test
   set.seed(seed)
@@ -995,7 +1062,7 @@ x <- list(
   subset = 13:nrow(ka.sts))
 final.modelwithout <- hhh4_lag(stsObj = ka.sts, control = x)
 final.modelwithout$convergence
-summary(final.modelwithout, idx2Exp = T, amplitudeShift = T) #AIC 10515.96
+summary(final.modelwithout, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10515.96
 
 time.period <- c(48,71) # 48 matches the value in predictivePower()
 
@@ -1043,7 +1110,7 @@ x <- list(
   max_lag = 12,
   subset = 13:24)# fit to 2013 only
 noint.2013 <- hhh4addon::hhh4_lag(stsObj = ka.sts, control = x)
-summary(noint.2013, amplitudeShift = T, idx2Exp = T)
+summary(noint.2013, amplitudeShift = TRUE, idx2Exp = TRUE)
 time.period <- c(24,35) # 2014 is the test set
 y.pred <- oneStepAhead_hhh4lag(result = noint.2013, tp = time.period, type = 'rolling') # breaks, convergence problems
 setwd(fig.loc)
@@ -1077,7 +1144,7 @@ x <- list(
   subset = 13:36) # fit to month before int
 noint.Dec14 <- hhh4_lag(stsObj = ka.sts, control = x) # counterfactual
 noint.Dec14$convergence
-summary(noint.Dec14, amplitudeShift = T, idx2Exp = T)
+summary(noint.Dec14, amplitudeShift = TRUE, idx2Exp = TRUE)
 no.sims <- 100000 
 y.start <- surveillance::observed(ka.sts)[25:36, ] # y.start=Jan15, range as it's distributed lags
 y.sim.noint.2012Dec14 <- simulate(noint.Dec14, nsim = no.sims, seed = starting.seed, subset = 37:72, y.start = y.start)
