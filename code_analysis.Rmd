@@ -541,11 +541,33 @@ end.HL = matrix(data = 0, nrow = 72, ncol = 33)
 end.HL[,which(HL.factor=="H")] = 1
 
 int.jan15constlag = calcDxconst(37)
+end.HL.11 = matrix(data = 0, nrow = 72, ncol = 33)
+end.HL.11[ka.sts@observed >= 11] = 1 # high-endemic := ">= 11 cases/mo"
+# 11 threshold obtained via AIC optimisation through values 1:
+# range(ka.sts@observed) # 0--259
+# AICvalue = vector(mode = "numeric", length = 259)
+# for (i in 1:259) {
+#   end.HL.t = matrix(data = 0, nrow = 72, ncol = 33)
+#   end.HL.t[ka.sts@observed >= i] = 1
+#   x <- list(
+#     ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
+#     end = list(f = addSeason2formula(~ 1 + end.HL.t, period = ka.sts@freq), offset = population(ka.sts)),
+#     ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+#     family = HL.factor,
+#     funct_lag = Dx_lag,
+#     par_lag = 1,
+#     min_lag = 1,
+#     max_lag = 12,
+#     subset = 13:nrow(ka.sts)
+#   )
+#   model <- hhh4_lag(stsObj = ka.sts, control = x)
+#   AICvalue[i] = AIC(model) # min at 11
+# } 
 
-# base model without end.HL & intervention
+# base model
 x <- list(
   ar = list(f = ~ 1 + vaishali),
-  end = list(f = ~ 1, offset = population(ka.sts)),
+  end = list(f = ~ end.HL.11, offset = population(ka.sts)),
   ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
   family = HL.factor,
   funct_lag = Dx_lag,
@@ -554,12 +576,12 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 M1.base = hhh4_lag(stsObj = ka.sts, control = x)
-summary(M1.base, idx2Exp = TRUE) # AIC: 10882.79
+summary(M1.base, idx2Exp = TRUE) # AIC: 10593.25
 
-# base model with end.HL
+# base model + intervention
 x <- list(
   ar = list(f = ~ 1 + vaishali + int.jan15constlag),
-  end = list(f = ~ end.HL, offset = population(ka.sts)),
+  end = list(f = ~ end.HL.11, offset = population(ka.sts)),
   ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
   family = HL.factor,
   funct_lag = Dx_lag,
@@ -567,13 +589,13 @@ x <- list(
   min_lag = 1,
   max_lag = 12,
   subset = 13:nrow(ka.sts))
-M1.base = hhh4_lag(stsObj = ka.sts, control = x)
-summary(M1.base, idx2Exp = TRUE) # AIC: 10886.67
+M1.baseint = hhh4_lag(stsObj = ka.sts, control = x)
+summary(M1.baseint, idx2Exp = TRUE) # AIC: 10584.72
 
-# seasonality in END
+# + seasonality in END
 x <- list(
   ar = list(f = ~ 1 + vaishali + int.jan15constlag),
-  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  end = list(f = addSeason2formula(~ 1 + end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
   ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
   family = HL.factor,
   funct_lag = Dx_lag,
@@ -581,13 +603,13 @@ x <- list(
   min_lag = 1,
   max_lag = 12,
   subset = 13:nrow(ka.sts))
-M1.ENDseas = hhh4_lag(stsObj = ka.sts, control = x)
-summary(M1.ENDseas, idx2Exp = TRUE) # AIC: 10721.52
+M1.baseintENDseas = hhh4_lag(stsObj = ka.sts, control = x)
+summary(M1.baseintENDseas, idx2Exp = TRUE) # AIC: 10403.2
 
-# seasonality in END + AR
+# + seasonality in AR = final model
 x <- list(
   ar = list(f = addSeason2formula(~ 1 + vaishali + int.jan15constlag, period = ka.sts@freq)),
-  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  end = list(f = addSeason2formula(~ 1 + end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
   ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
   family = HL.factor,
   funct_lag = Dx_lag,
@@ -595,13 +617,14 @@ x <- list(
   min_lag = 1,
   max_lag = 12,
   subset = 13:nrow(ka.sts))
-final.modelARseas <- hhh4_lag(stsObj = ka.sts, control = x)
-summary(final.modelARseas, idx2Exp = TRUE) # AIC: 10517.49. 
-# 10517.49-10886.67 = -369 (rounded)
+final.model <- hhh4_lag(stsObj = ka.sts, control = x)
+summary(final.model, idx2Exp = TRUE) # AIC: 10281.58
+# 10281.58-10593.25 = -311.67
 
+# no-pilot final model (counterfactual)
 x <- list(
   ar = list(f = addSeason2formula(~ 1 + vaishali, period = ka.sts@freq)),
-  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  end = list(f = addSeason2formula(~ 1 + end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
   ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
   family = HL.factor,
   funct_lag = Dx_lag,
@@ -609,9 +632,10 @@ x <- list(
   min_lag = 1,
   max_lag = 12,
   subset = 13:nrow(ka.sts))
-final.modelARseasnopilot <- hhh4_lag(stsObj = ka.sts, control = x)
-summary(final.modelARseasnopilot, idx2Exp = TRUE) # AIC: 10515.53.
+final.model.nopilot <- hhh4_lag(stsObj = ka.sts, control = x)
+summary(final.model.nopilot, idx2Exp = TRUE) # AIC: 10286.16
 ```
+
 ```{r VLHIVTBprop, eval = F}
 # does VLHIVTBprop vary with time?
 VLHIVTBprop = df[,(c(1:8,10:21,33,22,9,23:32)+66)]
@@ -640,85 +664,7 @@ X <- rep.int(NA,13) # start month
 Y <- rep.int(NA,13) # AIC
 # month 33=sep14; 37=jan15; 45=sep15
 for (month in 33:45) {
-intervention <- calcDxconst(month)
-x <- list(
-  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
-  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
-  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
-  family = HL.factor,
-  funct_lag = Dx_lag,
-  par_lag = 1,
-  min_lag = 1,
-  max_lag = 12,
-  subset = 13:nrow(ka.sts))
-intsensitiv <- hhh4_lag(stsObj = ka.sts, control = x)
-X[i] <- month
-Y[i] <- summary(intsensitiv, idx2Exp = TRUE, amplitudeShift = TRUE)$AIC
-i <- i + 1
-}
-plot(X,Y, main = 'Goodness of fit', xlab = 'Month number s(33 = September 2014)', ylab = 'AIC', type = "l") 
-names(Y) = X
-Y # minima at month=45 however very little difference across the range. 
-# Given that I will choose month = 37.
-
-# final model
-intervention <- calcDxconst(37)
-x <- list(
-  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
-  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
-  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
-  family = HL.factor,
-  funct_lag = Dx_lag,
-  par_lag = 1,
-  min_lag = 1,
-  max_lag = 12,
-  subset = 13:nrow(ka.sts))
-final.modelintjan15 <- hhh4_lag(stsObj = ka.sts, control = x)
-final.modelintjan15$convergence
-summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10517.49
-changeoftrend.coeffs <- summary(final.modelintjan15, idx2Exp = TRUE) # work in exp() space
-
-# quick test if end.HL is end.HL.t where it can change for districts
-end.HL.t = matrix(data = 0, nrow = 72, ncol = 33)
-end.HL.t[ka.sts@observed >= 1] = 1
-hist(ka.sts@observed, breaks = 259)
-x <- list(
-  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
-  end = list(f = addSeason2formula(~ 1 + end.HL.t, period = ka.sts@freq), offset = population(ka.sts)),
-  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
-  family = HL.factor,
-  funct_lag = Dx_lag,
-  par_lag = 1,
-  min_lag = 1,
-  max_lag = 12,
-  subset = 13:nrow(ka.sts))
-final.modelintjan15a <- hhh4_lag(stsObj = ka.sts, control = x)
-final.modelintjan15a$convergence
-summary(final.modelintjan15a, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10343.97 !
-
-range(ka.sts@observed) # 0--259
-AICvalue = vector(mode = "numeric", length = 259)
-for (i in 1:259) {
-  end.HL.t = matrix(data = 0, nrow = 72, ncol = 33)
-  end.HL.t[ka.sts@observed >= i] = 1
-  x <- list(
-    ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
-    end = list(f = addSeason2formula(~ 1 + end.HL.t, period = ka.sts@freq), offset = population(ka.sts)),
-    ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
-    family = HL.factor,
-    funct_lag = Dx_lag,
-    par_lag = 1,
-    min_lag = 1,
-    max_lag = 12,
-    subset = 13:nrow(ka.sts)
-  )
-  model <- hhh4_lag(stsObj = ka.sts, control = x)
-  AICvalue[i] = AIC(model)
-}
-# min at 11
-
-end.HL.11 = matrix(data = 0, nrow = 72, ncol = 33)
-end.HL.11[ka.sts@observed >= 11] = 1
+  intervention <- calcDxconst(month)
   x <- list(
     ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
     end = list(f = addSeason2formula(~ 1 + end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
@@ -728,14 +674,34 @@ end.HL.11[ka.sts@observed >= 11] = 1
     par_lag = 1,
     min_lag = 1,
     max_lag = 12,
-    subset = 13:nrow(ka.sts)
-  )
-model11 <- summary(hhh4_lag(stsObj = ka.sts, control = x), idx2Exp = TRUE)$fixef
+    subset = 13:nrow(ka.sts))
+  intsensitiv <- hhh4_lag(stsObj = ka.sts, control = x)
+  X[i] <- month
+  Y[i] <- summary(intsensitiv, idx2Exp = TRUE, amplitudeShift = TRUE)$AIC
+  i <- i + 1
+}
+plot(X,Y, main = 'Goodness of fit', xlab = 'Month number s(33 = September 2014)', ylab = 'AIC', type = "l") 
+names(Y) = X
+Y # minima at months=36:38 so will choose midpoint as month = 37.
 
-# compare point ests and sd
-cbind(summary(final.modelintjan15, idx2Exp = TRUE)$fixef, model11)
+# final model
+intervention <- calcDxconst(37)
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+final.modelintjan15 <- hhh4_lag(stsObj = ka.sts, control = x)
+final.modelintjan15$convergence
+summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10281.58
+changeoftrend.coeffs <- summary(final.modelintjan15, idx2Exp = TRUE) # work in exp() space
 
-boxplot(exp(residuals(final.modelintjan15)), use.cols = TRUE)# quite a range in the residuals by district, so makes sense to resample for the bootstrap by these groups
+boxplot(residuals(final.modelintjan15), use.cols = TRUE) # quite a range in the residuals by district, so makes sense to resample for the bootstrap by these groups
 
 # table of coeffs
 coef.table = matrix(nrow = 8, ncol = 4, dimnames = list(c("other","V","pilot","end.1","end.HL.HL","other*V","other*V*pilot","end.1*end.HL.HL"),c("modelmean","modelsd","jackmean","jacksd")))
@@ -870,7 +836,7 @@ for (month in 33:45) {
 intervention <- calcDxconst(month)
 x <- list(  
   ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
-  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  end = list(f = addSeason2formula(~ 1 + end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
   ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
   family = HL.factor,
   funct_lag = Dx_lag,
@@ -915,14 +881,14 @@ return(permut.test.rps.pvalue)
 
 # reference(base model) vs pilot and counterfactual on predictive performance
 set.seed(2030)
-models2compare = c("M1.base", "final.modelARseas", 
-                   "final.modelARseasnopilot")
+models2compare = c("M1.base", "final.model", 
+                   "final.model.nopilot")
 VLpred <- lapply(mget(models2compare), oneStepAhead_hhh4lag, 
                         tp = 37, type = "rolling", which.start = "current")
 SCORES <- c("logs", "rps", "dss", "ses")
 VLscores = lapply(VLpred, scores, which = SCORES, individual = TRUE)
-t(sapply(VLscores, colMeans, dims = 2))  
-predictivePower(final.modelARseas, M1.base, seed = 2030) # 
+t(sapply(VLscores, colMeans, dims = 2)) # final & counterfactual models have lower RPS than base model (2.82). counterfactual (2.46) has higher predictive power than final model (2.50)
+predictivePower(final.model, M1.base, seed = 2030) # p < 1e-05
 
 # final model using diagnostic SI distrib. vs different distributed-lag
 # formulations
@@ -931,7 +897,7 @@ optimGeo <- function(parlag.optim) {
 intervention = calcDxconst(37, "geo", par_lag = parlag.optim)
 x <- list(
   ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
-  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  end = list(f = addSeason2formula(~ 1 + end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
   ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
   family = HL.factor,
   funct_lag = geometric_lag,
@@ -1100,18 +1066,18 @@ dev.off()
 ```{r cases-averted-step1}
 x <- list(
   ar = list(f = addSeason2formula(~ 1 + vaishali, period = ka.sts@freq)),
-  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  end = list(f = addSeason2formula(~ end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
   ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
   family = HL.factor,
   funct_lag = Dx_lag,
   par_lag = 1,
   min_lag = 1,
   max_lag = 12,
-  subset = 13:24)# fit to 2013 only
+  subset = 13:24) # fit to 2013 only
 noint.2013 <- hhh4addon::hhh4_lag(stsObj = ka.sts, control = x)
 summary(noint.2013, amplitudeShift = TRUE, idx2Exp = TRUE)
 time.period <- c(24,35) # 2014 is the test set
-y.pred <- oneStepAhead_hhh4lag(result = noint.2013, tp = time.period, type = 'rolling') # breaks, convergence problems
+y.pred <- oneStepAhead_hhh4lag(result = noint.2013, tp = time.period, type = 'rolling') # breaks, convergence problems for months 32:35
 setwd(fig.loc)
 svg(filename = "figS7withoutpredperf.svg", width = 13.66, height = 7.68)
 par(family = "serif")
@@ -1130,10 +1096,9 @@ Looks like a reasonable fit and prediction. Now do steps 2-4:
 ```{r cases-averted-step2to4, eval=FALSE, include=TRUE}
 gc() # for high no.sims we want to clear out the memory
 starting.seed = 16092018-17:25
-ptm <- proc.time()
 x <- list(
   ar = list(f = addSeason2formula(~ 1 + vaishali, period = ka.sts@freq)),
-  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  end = list(f = addSeason2formula(~ 1 + end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
   ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
   family = HL.factor,
   funct_lag = Dx_lag,
@@ -1147,19 +1112,18 @@ summary(noint.Dec14, amplitudeShift = TRUE, idx2Exp = TRUE)
 no.sims <- 100000 
 y.start <- surveillance::observed(ka.sts)[25:36, ] # y.start=Jan15, range as it's distributed lags
 y.sim.noint.2012Dec14 <- simulate(noint.Dec14, nsim = no.sims, seed = starting.seed, subset = 37:72, y.start = y.start)
-y.sim.final.model.pred <- simulate(final.modelARseas, nsim = no.sims, seed = starting.seed, subset = 37:72, y.start = y.start) # note both simulations get the same starting seed
+y.sim.final.model.pred <- simulate(final.model, nsim = no.sims, seed = starting.seed, subset = 37:72, y.start = y.start) # note both simulations get the same starting seed
 y.sim.diff <- y.sim.noint.2012Dec14[,33,] - y.sim.final.model.pred[,33,]
 averted <- colSums(y.sim.diff)
-# hist(averted, main = 'Distribution of simulated estimates for cases averted (median = 569 cases)', xlab = 'KA cases averted', ylab = 'Number of simulations')
-averted.median <- round(median(averted)) # median is better to report. 98
+# hist(averted, main = 'Distribution of simulated estimates for cases averted (median = 354 cases)', xlab = 'KA cases averted', ylab = 'Number of simulations')
+averted.median <- round(median(averted)) # median is better to report. 354
 summary(averted)
-# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-# -838  -41.00   96.00   96.41  233.00 1070.00
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# -378.0   234.0   354.0   360.6   479.0  1285.0 
 averted.mean = round(mean(averted))
-round(mean(averted) - sd(averted)/sqrt(no.sims)*1.96) #95
-round(mean(averted) + sd(averted)/sqrt(no.sims)*1.96) #98
-sum(averted < 0) # no of sims with a negative effect, 31712/100Ksims
-proc.time() - ptm # 80 mins
+round(mean(averted) - sd(averted)/sqrt(no.sims)*1.96) # 359
+round(mean(averted) + sd(averted)/sqrt(no.sims)*1.96) # 362
+sum(averted < 0) # no of sims with a negative effect, 1949/100Ksims
 
 #check in averted cases over time
 averted.cumsum.t = apply(y.sim.diff, 2, cumsum)
@@ -1167,13 +1131,13 @@ median.averted.t = apply(averted.cumsum.t, 1, summary)
 setwd(fig.loc)
 svg(filename = "fig4casesaverted.svg", width = (9*2/2.5), height = (6*2/2.5))
 par(family = "serif")
-plot(median.averted.t[3,], type = "l", ylim = c(-74,237), xaxs = "i", yaxs = "i", 
+plot(median.averted.t[3,], type = "l", ylim = c(-24,479), xaxs = "i", yaxs = "i", 
      xaxt = "n",
      xlab = "Intervention month", ylab = "VL cases averted", col = "#56B4E9", lwd = 2)
 lines(median.averted.t[2,], lty = 2, lwd = 4, col = "#56B4E9")
 lines(median.averted.t[5,], lty = 2, lwd = 4, col = "#56B4E9")
 abline(h=0)
-legend(x = c(2.5, 17), y = c(150, 210), text.width = 5, legend=c('median', 'upper/lower quartiles'), col=c("#56B4E9", "#56B4E9"), lty=c(1,2), lwd=4,
+legend(x = c(2.5, 17), y = c(315, 410), text.width = 5, legend=c('median', 'upper/lower quartiles'), col=c("#56B4E9", "#56B4E9"), lty=c(1,2), lwd=4,
        seg.len = 4)
 axis(1, at = c(1,13,25,36), labels = c("Jan-15","Jan-16","Jan-17","Dec-17"))
 dev.off()
