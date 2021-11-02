@@ -717,55 +717,6 @@ final.modelintjan15$convergence
 summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10517.49
 changeoftrend.coeffs <- summary(final.modelintjan15, idx2Exp = TRUE) # work in exp() space
 
-# final model (can we recode it to get the combined vars we need?)
-end.L = ifelse(end.HL==0, 1, 0)
-end.H = ifelse(end.HL==1, 1, 0)
-x <- list(
-  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
-  end = list(f = addSeason2formula(~ end.L + end.H - 1, period = ka.sts@freq), offset = population(ka.sts)),
-  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
-  family = HL.factor,
-  funct_lag = Dx_lag,
-  par_lag = 1,
-  min_lag = 1,
-  max_lag = 12,
-  subset = 13:nrow(ka.sts))
-final.modelintjan15 <- hhh4_lag(stsObj = ka.sts, control = x) # convergence problem
-
-# get jackknife estimates for particular parameters requiring cov(X^2,Y^2) which is unobtainable from the hhh4-fitted model object i.e. final.modelintjan15
-
-# create one-less ka.sts
-sum(ka.sts@observed>0) # 1966 ">0" district-time observations are available
-N.index = which(ka.sts@observed>0)
-elm = matrix(nrow = 12, ncol = 2)
-coef.list = rep(list(elm),1966)
-ptm <- proc.time()
-for (i in 1:1966) {
-  temp.ka.sts = ka.sts
-  temp.ka.sts@observed[N.index[i]] = temp.ka.sts@observed[N.index[i]] - 1
-  # also remove from populationFrac too. Thus our interpretation of the jackknife here isn't just remove a case but also correctly update other elements of the STS object for conservation of human numbers!
-  temp.ka.sts@populationFrac[N.index[i]] = temp.ka.sts@populationFrac[N.index[i]] - 1
-  x <- list(
-    ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = temp.ka.sts@freq)),
-    end = list(f = addSeason2formula(~ 1 + end.HL, period = temp.ka.sts@freq), offset = population(temp.ka.sts)),
-    ne = list(f = ~ 1, weights = neighbourhood(temp.ka.sts) == 1),
-    family = HL.factor,
-    funct_lag = Dx_lag,
-    par_lag = 1,
-    min_lag = 1,
-    max_lag = 12,
-    subset = 13:nrow(temp.ka.sts)
-  )
-  temp.hhh4 <- hhh4_lag(stsObj = temp.ka.sts, control = x)
-  if (temp.hhh4$convergence) {
-    coef.list[[i]] = summary(temp.hhh4)$fixef
-  } else {
-    coef.list[[i]] = NA
-  }
-}
-proc.time() - ptm # ~ 634s
-save(coef.list, file = "coef.list.RData")
-
 # table of coeffs
 coef.table = matrix(nrow = 8, ncol = 4, dimnames = list(c("other","V","pilot","end.1","end.HL.HL","other*V","other*V*pilot","end.1*end.HL.HL"),c("modelmean","modelsd","jackmean","jacksd")))
 coef.vector = unlist(coef.list)
@@ -796,42 +747,7 @@ coef.table[7,4] = sqrt(mean(exp(2*other.vector + 2*V.vector + 2*pilot.vector)) -
 coef.table[8,4] = sqrt(mean(exp(2*end.1.vector + 2*end.HL.HL.vector)) - (mean(exp(end.1.vector + end.HL.HL.vector)))^2)
 coef.table[1:5,1] = changeoftrend.coeffs[[9]][c(1,2,3,7,8)]
 coef.table[1:5,2] = changeoftrend.coeffs[[9]][c(13,14,15,19,20)]
-coef.table # jackmean is close to modelmean, however jacksd underestimates variance from 1-3 orders of magnitude! Alas it is the only solution we have, so we warn that variances computed from the jacksd estimator are likely to be underestimates.
-
-# bootstrap the residuals
-thisistheseed = 16
-elm = matrix(nrow = 12, ncol = 2)
-coef.list = rep(list(elm),250)
-ptm <- proc.time()
-set.seed(seed = thisistheseed)
-epsilon = residuals(final.modelintjan15)
-nbstrap = 1
-while (nbstrap < 251) {
-  epsilon.bstrap = sample(epsilon, replace = TRUE)
-  y.bstrap = round(fitted(final.modelintjan15) + epsilon.bstrap)
-  y.bstrap[y.bstrap<0] = 0 # prevent negative values
-  y.bstrap = rbind(ka.sts@observed[1:12,], y.bstrap)
-  temp.ka.sts = ka.sts
-  temp.ka.sts@observed = y.bstrap
-  x <- list(
-    ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = temp.ka.sts@freq)),
-    end = list(f = addSeason2formula(~ 1 + end.HL, period = temp.ka.sts@freq), offset = population(temp.ka.sts)),
-    ne = list(f = ~ 1, weights = neighbourhood(temp.ka.sts) == 1),
-    family = HL.factor,
-    funct_lag = Dx_lag,
-    par_lag = 1,
-    min_lag = 1,
-    max_lag = 12,
-    subset = 13:nrow(temp.ka.sts)
-  )
-  temp.hhh4 <- hhh4_lag(stsObj = temp.ka.sts, control = x)
-  if (temp.hhh4$convergence) {
-    coef.list[[nbstrap]] = summary(temp.hhh4)$fixef
-    nbstrap = nbstrap + 1
-  } 
-}
-proc.time() - ptm
-save(coef.list, file = paste0("coef.list.bstrap",thisistheseed,".RData"))
+coef.table
 
 # pre-pilot Vaishali
 prepilot.vaishali = changeoftrend.coeffs[[9]][1] + changeoftrend.coeffs[[9]][2]
