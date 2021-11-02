@@ -799,7 +799,7 @@ coef.table[1:5,2] = changeoftrend.coeffs[[9]][c(13,14,15,19,20)]
 coef.table # jackmean is close to modelmean, however jacksd underestimates variance from 1-3 orders of magnitude! Alas it is the only solution we have, so we warn that variances computed from the jacksd estimator are likely to be underestimates.
 
 # bootstrap the residuals
-thisistheseed = 8
+thisistheseed = 16
 elm = matrix(nrow = 12, ncol = 2)
 coef.list = rep(list(elm),250)
 ptm <- proc.time()
@@ -807,7 +807,7 @@ set.seed(seed = thisistheseed)
 epsilon = residuals(final.modelintjan15)
 nbstrap = 1
 while (nbstrap < 251) {
-  epsilon.bstrap = sample(epsilon, replace = FALSE)
+  epsilon.bstrap = sample(epsilon, replace = TRUE)
   y.bstrap = round(fitted(final.modelintjan15) + epsilon.bstrap)
   y.bstrap[y.bstrap<0] = 0 # prevent negative values
   y.bstrap = rbind(ka.sts@observed[1:12,], y.bstrap)
