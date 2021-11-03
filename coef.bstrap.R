@@ -8,9 +8,11 @@ load("up to 564.RData")
 
 # final model
 intervention <- calcDxconst(37)
+end.HL.11 = matrix(data = 0, nrow = 72, ncol = 33)
+end.HL.11[ka.sts@observed >= 11] = 1 # high-endemic := ">= 11 cases/mo"
 x <- list(
   ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
-  end = list(f = addSeason2formula(~ 1 + end.HL, period = ka.sts@freq), offset = population(ka.sts)),
+  end = list(f = addSeason2formula(~ 1 + end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
   ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
   family = HL.factor,
   funct_lag = Dx_lag,
@@ -30,7 +32,7 @@ nbstrap = 1
 tries = 0
 while (nbstrap < (bstraprqst + 1)) {
   tries = tries + 1
-  epsilon.bstrap = sample(epsilon, replace = TRUE)
+  epsilon.bstrap = apply(epsilon, 2, sample, replace = TRUE) # district-wise bootstrap
   y.bstrap = round(fitted(final.modelintjan15) + epsilon.bstrap)
   y.bstrap[y.bstrap<0] = 0 # prevent negative values
   y.bstrap = rbind(ka.sts@observed[1:12,], y.bstrap)
@@ -38,7 +40,7 @@ while (nbstrap < (bstraprqst + 1)) {
   temp.ka.sts@observed = y.bstrap
   x <- list(
     ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = temp.ka.sts@freq)),
-    end = list(f = addSeason2formula(~ 1 + end.HL, period = temp.ka.sts@freq), offset = population(temp.ka.sts)),
+    end = list(f = addSeason2formula(~ 1 + end.HL.11, period = temp.ka.sts@freq), offset = population(temp.ka.sts)),
     ne = list(f = ~ 1, weights = neighbourhood(temp.ka.sts) == 1),
     family = HL.factor,
     funct_lag = Dx_lag,
