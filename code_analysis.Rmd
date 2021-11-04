@@ -705,7 +705,7 @@ changeoftrend.coeffs <- summary(final.modelintjan15, idx2Exp = TRUE, amplitudeSh
 boxplot(residuals(final.modelintjan15), use.cols = TRUE) # quite a range in the residuals by district, so makes sense to resample by district grouping for this bootstrap. See coef.bstrap.R which performed this on the High Performance Cluster.
 
 # table of coeffs
-coef.table = matrix(nrow = 8, ncol = 4, dimnames = list(c("other","V","pilot","end.1","end.HL.HL","other*V","other*V*pilot","end.1*end.HL.HL"),c("modelmean","modelsd","bstrapmean","bstrapsd")))
+coef.table = matrix(nrow = 8, ncol = 4, dimnames = list(c("other","V","pilot","end.1","end.HL.11","other*V","other*V*pilot","end.1*end.HL.11"),c("modelmean","modelsd","bstrapmean","bstrapsd")))
 coef.vector = NULL
 for (i in 1:100) {
   load(file = paste0("C:/Users/mochu/ITSA/bstrapresults1/results1/coef.list.bstrap",i,".RData"))
@@ -808,24 +808,43 @@ duringpilot.upper*100 # 50.7
 
 (1-changeoftrend.coeffs[[9]][3]^36)*100 # 100.0% practically the pilot effect appears to eliminate all of the epidemic component when applied for 36 consecutive months, thus acting compoundly.
 
-mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * changeoftrend.coeffs[[9]][9] # interpreting endemic intercept point estimate on jan 2012 for a low-incidence district at its seasonal maximum (thus sin()=1, exp(A_{END}*1) = and exp(A_{END})). 0.03945743/mo on average for the 33 study districts in high season. As far less than 1/mo, no point calculating what it would be in low season.
+changeoftrend.coeffs[[9]][4] # 0.270
+changeoftrend.coeffs[[9]][16] # 0.022
+changeoftrend.coeffs[[9]][5] # -0.664
+changeoftrend.coeffs[[9]][17] # 0.047
+changeoftrend.coeffs[[9]][9] # 0.377
+changeoftrend.coeffs[[9]][21] # 0.133
+changeoftrend.coeffs[[9]][10] # 0.515
+changeoftrend.coeffs[[9]][22] # 0.171
 
-mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * changeoftrend.coeffs[[9]][9] * changeoftrend.coeffs[[9]][8] # for a high-incidence district in high season, 1.6 cases/mo
-NOW DO IT FOR LOW SEASON
+# decided not to compute CIs for lower-priority results on non-pilot matters eg endemic/seasonal/neighbourhood contribution to avoid a sea of CIs. 
 
-exp(changeoftrend.coeffs[[9]][7] + changeoftrend.coeffs[[9]][8])
-sqrt((changeoftrend.coeffs[[9]][19]^2) + (changeoftrend.coeffs[[9]][20]^2) + (2*final.modelintjan15$cov[7,8])) #se
+# endemic params
+changeoftrend.coeffs[[9]][7]*changeoftrend.coeffs[[9]][8] # 1.54e-06, high
+coef.table[8,4] # 2.92e-07, high
+changeoftrend.coeffs[[9]][7] # 3.72e-08, low
+changeoftrend.coeffs[[9]][19] # 1.48e-08, low
 
-mean(popn.time.matrix[1,])*exp(changeoftrend.coeffs[[9]][7]+changeoftrend.coeffs[[9]][8]+changeoftrend.coeffs[[9]][9]) # 0.96/mo for a high-endemic distt during
-# a peak seasonal month 
+mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * exp(changeoftrend.coeffs[[9]][9]*1) # interpreting endemic intercept point estimate on jan 2012 for a low-incidence setting(<11 cases/mo) at its seasonal maximum (thus sin()=1, exp(A_{END}*1) = and exp(A_{END})). 0.1525025/mo on average for the 33 study districts in high season. As this is far less than 1/mo, no point calculating what it would be in low season.
 
-# seasonality change
-seasonal.ar = (as.numeric(plot(final.modelintjan15, type = "season")[[2]]))
-round(diff(range(seasonal.ar))/min(seasonal.ar)*100, 3)
-plot(final.modelintjan15, type = "season")
+mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * exp(changeoftrend.coeffs[[9]][9]*1) * changeoftrend.coeffs[[9]][8] # for a high-incidence setting in high season, ~6 cases/mo
+
+mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * exp(changeoftrend.coeffs[[9]][9]*(-1)) * changeoftrend.coeffs[[9]][8] # for a high-incidence setting in low season, ~3 cases/mo
+
+# seasonality change on AR. Not as interested as seasonality on END component as the END component generally has a far smaller contribution as per SI Fig. S5
+plot(final.modelintjan15, type = "season") # read-off min & max of 2nd (AR compon.) graph 
+(1.31 - 0.76)*100 # 55 % May (max), November (min)
 
 # ne contribution
-round(exp(changeoftrend.coeffs[[9]][6])*100, 3)
+changeoftrend.coeffs[[9]][6] # 4.77e-03
+changeoftrend.coeffs[[9]][6]*100 # 0.5%
+changeoftrend.coeffs[[9]][18] # 1.37e-03
+
+# dispersion parameters
+changeoftrend.coeffs[[9]][11] # 0.060
+changeoftrend.coeffs[[9]][23] # 0.005
+changeoftrend.coeffs[[9]][12] # 0.115
+changeoftrend.coeffs[[9]][24] # 0.018
 ```
 
 ```{r final-model-separated-components}
