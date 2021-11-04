@@ -24,6 +24,7 @@ library(sp) # v1.4-5 shapefiles
 library(spdep) # v1.1-11 nbOrder(), moran's I analysis
 library(stats) # v4.1.1 ts()
 library(surveillance) # v1.19.1 poly2adjmat(), hhh4_spacetime classes
+library(HDInterval) # v0.2.2
 
 folder.loc = "hidden_location_sorry"
 fig.loc = paste0(folder.loc,"/paper/manuscript_files/manuscript_svg")
@@ -701,13 +702,13 @@ final.modelintjan15$convergence
 summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10281.58
 changeoftrend.coeffs <- summary(final.modelintjan15, idx2Exp = TRUE) # work in exp() space
 
-boxplot(residuals(final.modelintjan15), use.cols = TRUE) # quite a range in the residuals by district, so makes sense to resample for the bootstrap by these groups
+boxplot(residuals(final.modelintjan15), use.cols = TRUE) # quite a range in the residuals by district, so makes sense to resample by district grouping for this bootstrap. See coef.bstrap.R which performed this on the High Performance Cluster.
 
 # table of coeffs
-coef.table = matrix(nrow = 8, ncol = 4, dimnames = list(c("other","V","pilot","end.1","end.HL.HL","other*V","other*V*pilot","end.1*end.HL.HL"),c("modelmean","modelsd","jackmean","jacksd")))
+coef.table = matrix(nrow = 8, ncol = 4, dimnames = list(c("other","V","pilot","end.1","end.HL.HL","other*V","other*V*pilot","end.1*end.HL.HL"),c("modelmean","modelsd","bstrapmean","bstrapsd")))
 coef.vector = NULL
 for (i in 1:100) {
-  load(file = paste0("C:/Users/mochu/ITSA/bstrapresults/results/coef.list.bstrap",i,".RData"))
+  load(file = paste0("C:/Users/mochu/ITSA/bstrapresults1/results1/coef.list.bstrap",i,".RData"))
   coef.vector = c(unlist(coef.list), coef.vector)
 }
 other.vector = coef.vector[seq.int(from = 1, to = 48000, by = 24)]
@@ -724,10 +725,27 @@ hist(exp(other.vector))
 hist(exp(V.vector))
 hist(exp(pilot.vector))
 hist(exp(end.1.vector))
-hist(exp(end.HL.HL.vector))
+hist(exp(end.HL.HL.vector)) # quite varied
 hist(exp(othertimesV))
 hist(exp(othertimesVtimespilot))
 hist(exp(end.1timesend.HL.HL))
+
+withinHDI <- function(x) {
+  range = as.numeric(hdi(x, credMass = 0.95))
+  whatswithin = ((x >= range[1]) & (x <= range[2]))
+  x = x[whatswithin]
+  return(x)
+}
+
+# from histogram analysis going to use 95% HD interval to trim distributions for a more robust estimate
+other.vector = withinHDI(other.vector)
+V.vector = withinHDI(V.vector)
+pilot.vector = withinHDI(pilot.vector)
+end.1.vector = withinHDI(end.1.vector)
+end.HL.HL.vector = withinHDI(end.HL.HL.vector)
+othertimesV = withinHDI(othertimesV)
+othertimesVtimespilot = withinHDI(othertimesVtimespilot)
+end.1timesend.HL.HL = withinHDI(end.1timesend.HL.HL)
 
 coef.table[1,3] = mean(exp(other.vector))
 coef.table[2,3] = mean(exp(V.vector))
@@ -747,8 +765,8 @@ coef.table[7,4] = sqrt(mean(exp(2*other.vector + 2*V.vector + 2*pilot.vector)) -
 coef.table[8,4] = sqrt(mean(exp(2*end.1.vector + 2*end.HL.HL.vector)) - (mean(exp(end.1.vector + end.HL.HL.vector)))^2)
 coef.table[1:5,1] = changeoftrend.coeffs[[9]][c(1,2,3,7,8)]
 coef.table[1:5,2] = changeoftrend.coeffs[[9]][c(13,14,15,19,20)]
-coef.table
-range(coef.table[1:5,4]/coef.table[1:5,2]*100)
+coef.table # appears that bootstrap estimates for the first 5 rows (that can be compared with model output) show that bootstrapping tends to underestimate the sd by around ...
+100-(round(range(coef.table[1:5,4]/coef.table[1:5,2]*100))) # 52--97%
 
 # pre-pilot Vaishali
 prepilot.vaishali = changeoftrend.coeffs[[9]][1] + changeoftrend.coeffs[[9]][2]

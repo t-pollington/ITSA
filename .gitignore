@@ -6,6 +6,9 @@ figs/
 *.rds
 *.csv
 
+# HPC files
+*.sh
+
 # History files
 .Rhistory
 .Rapp.history
