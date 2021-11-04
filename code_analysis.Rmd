@@ -700,7 +700,7 @@ x <- list(
 final.modelintjan15 <- hhh4_lag(stsObj = ka.sts, control = x)
 final.modelintjan15$convergence
 summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10281.58
-changeoftrend.coeffs <- summary(final.modelintjan15, idx2Exp = TRUE) # work in exp() space
+changeoftrend.coeffs <- summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) # work in exp() space
 
 boxplot(residuals(final.modelintjan15), use.cols = TRUE) # quite a range in the residuals by district, so makes sense to resample by district grouping for this bootstrap. See coef.bstrap.R which performed this on the High Performance Cluster.
 
@@ -769,44 +769,49 @@ coef.table # appears that bootstrap estimates for the first 5 rows (that can be 
 100-(round(range(coef.table[1:5,4]/coef.table[1:5,2]*100))) # 52--97%
 
 # pre-pilot Vaishali
-prepilot.vaishali = changeoftrend.coeffs[[9]][1] + changeoftrend.coeffs[[9]][2]
-round(exp(prepilot.vaishali),3) # Vaishali-specific pre-pilot AR term 0·75
+prepilot.vaishali = changeoftrend.coeffs[[9]][1] * changeoftrend.coeffs[[9]][2]
+prepilot.vaishali # Vaishali-specific pre-pilot AR term 0·680
 # pre-pilot CIs
-# Var(X+Y) = Var(X)+Var(Y)+2Cov(X,Y)
-prepilot.vaishali.se = sqrt((changeoftrend.coeffs[[9]][13]^2) + (changeoftrend.coeffs[[9]][14]^2) + (2*final.modelintjan15$cov[1,2]))
-round(exp(prepilot.vaishali.se),3) #1.055
+prepilot.vaishali.se = coef.table[6,4]
+prepilot.vaishali.se # 0.003
 prepilot.lower = prepilot.vaishali - 1.96*prepilot.vaishali.se
 prepilot.upper = prepilot.vaishali + 1.96*prepilot.vaishali.se 
-round(exp(prepilot.lower),3) #0.676
-round(exp(prepilot.upper),3) #0.832
+prepilot.lower*100 # 67.4
+prepilot.upper*100 # 68.5
 
 # other districts CIs
+changeoftrend.coeffs[[9]][1] # 0.709 
+changeoftrend.coeffs[[9]][13] # 0.016
 other.lower = changeoftrend.coeffs[[9]][1] - 1.96*changeoftrend.coeffs[[9]][13]
 other.upper = changeoftrend.coeffs[[9]][1] + 1.96*changeoftrend.coeffs[[9]][13]
-round(exp(other.lower),3) #0.821
-round(exp(other.upper),3) #0.869
+other.lower*100 # 67.8
+other.upper*100 # 73.9
 
 # during-pilot CIs
-duringpilot = changeoftrend.coeffs[[9]][1]+changeoftrend.coeffs[[9]][2]+
+duringpilot = changeoftrend.coeffs[[9]][1]*changeoftrend.coeffs[[9]][2]*
               changeoftrend.coeffs[[9]][3]
-round(exp(duringpilot),3) #0.737
-round((1-exp(changeoftrend.coeffs[[9]][3])) * 100,1) # 1·7% reduction for Vaishali during the 
+duringpilot*100 # 49.4
+(1 - changeoftrend.coeffs[[9]][3]) * 100 # 71.7% reduction for Vaishali during the pilot
+changeoftrend.coeffs[[9]][3] # 0.727
+changeoftrend.coeffs[[9]][15] # 0.094
 pilot.lower = changeoftrend.coeffs[[9]][3] - 1.96*changeoftrend.coeffs[[9]][15]
 pilot.upper = changeoftrend.coeffs[[9]][3] + 1.96*changeoftrend.coeffs[[9]][15]
-round((1-exp(pilot.lower))*100,1) # 18.4%
-round((1-exp(pilot.upper))*100,1) # -18.2%
+(1-pilot.lower)*100 # 45.8
+(1-pilot.upper)*100 # 8.9
 
-# intervention jan15 up to dec 17 inclusive
-# Var(X1+X2+X3) = Var(X1)+Var(X2)+Var(X3)+2Cov(X1,X2)+2Cov(X1,X3)+2Cov(X2,X3)
-duringpilot.se = sqrt((changeoftrend.coeffs[[9]][13]^2)+(changeoftrend.coeffs[[9]][14]^2)+(changeoftrend.coeffs[[9]][15]^2)+(2*final.modelintjan15$cov[1,2])+(2*final.modelintjan15$cov[1,3])+(2*final.modelintjan15$cov[2,3]))
+# during-pilot Vaishali
+duringpilot.se = coef.table[7,4]
 duringpilot.lower = duringpilot-1.96*duringpilot.se
 duringpilot.upper = duringpilot+1.96*duringpilot.se
-round(exp(duringpilot.lower),3) #0.635
-round(exp(duringpilot.upper),3) #0.855
+duringpilot.lower*100 # 48.2
+duringpilot.upper*100 # 50.7
 
-(1-exp(changeoftrend.coeffs[[9]][3])^36)*100 #46.9%
+(1-changeoftrend.coeffs[[9]][3]^36)*100 # 100.0% practically the pilot effect appears to eliminate all of the epidemic component when applied for 36 consecutive months, thus acting compoundly.
 
-mean(popn.time.matrix[1,])*exp(changeoftrend.coeffs[[9]][7]) # interpreting endemic intercept point estimate on jan12. 0.0002368449/mo in total over the 33 study districts in their lower seasonal months in low endemic districts
+mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * changeoftrend.coeffs[[9]][9] # interpreting endemic intercept point estimate on jan 2012 for a low-incidence district at its seasonal maximum (thus sin()=1, exp(A_{END}*1) = and exp(A_{END})). 0.03945743/mo on average for the 33 study districts in high season. As far less than 1/mo, no point calculating what it would be in low season.
+
+mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * changeoftrend.coeffs[[9]][9] * changeoftrend.coeffs[[9]][8] # for a high-incidence district in high season, 1.6 cases/mo
+NOW DO IT FOR LOW SEASON
 
 exp(changeoftrend.coeffs[[9]][7] + changeoftrend.coeffs[[9]][8])
 sqrt((changeoftrend.coeffs[[9]][19]^2) + (changeoftrend.coeffs[[9]][20]^2) + (2*final.modelintjan15$cov[7,8])) #se
