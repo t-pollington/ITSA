@@ -702,7 +702,7 @@ changeoftrend.coeffs <- summary(final.modelintjan15, idx2Exp = TRUE, amplitudeSh
 boxplot(residuals(final.modelintjan15), use.cols = TRUE) # quite a range in the residuals by district, so makes sense to resample by district grouping for this bootstrap. See coef.bstrap.R which performed this on the High Performance Cluster.
 
 # table of coeffs
-coef.table = matrix(nrow = 8, ncol = 4, dimnames = list(c("other","V","pilot","end.1","end.HL.11","other*V","other*V*pilot","end.1*end.HL.11"),c("modelmean","modelsd","bstrapmean","bstrapsd")))
+coef.table = matrix(nrow = 8, ncol = 4, dimnames = list(c("other","V","pilot","end.1","end.HL.11","other*V","other*V*pilot","end.1*end.HL.11"),c("modelmean","modelSE","bstrapmean","bstrapSE")))
 coef.vector = NULL
 for (i in 1:100) {
   load(file = paste0("C:/Users/mochu/ITSA/bstrapresults1/results1/coef.list.bstrap",i,".RData"))
@@ -752,14 +752,14 @@ coef.table[5,3] = mean(exp(end.HL.HL.vector))
 coef.table[6,3] = mean(exp(othertimesV))
 coef.table[7,3] = mean(exp(othertimesVtimespilot))
 coef.table[8,3] = mean(exp(end.1timesend.HL.HL))
-coef.table[1,4] = sd(exp(other.vector))
-coef.table[2,4] = sd(exp(V.vector))
-coef.table[3,4] = sd(exp(pilot.vector))
-coef.table[4,4] = sd(exp(end.1.vector))
-coef.table[5,4] = sd(exp(end.HL.HL.vector))
-coef.table[6,4] = sqrt(mean(exp(2*other.vector + 2*V.vector)) - (mean(exp(other.vector+V.vector)))^2)
-coef.table[7,4] = sqrt(mean(exp(2*other.vector + 2*V.vector + 2*pilot.vector)) - (mean(exp(other.vector + V.vector + pilot.vector)))^2)
-coef.table[8,4] = sqrt(mean(exp(2*end.1.vector + 2*end.HL.HL.vector)) - (mean(exp(end.1.vector + end.HL.HL.vector)))^2)
+coef.table[1,4] = sd(exp(other.vector))/sqrt(2000)
+coef.table[2,4] = sd(exp(V.vector))/sqrt(2000)
+coef.table[3,4] = sd(exp(pilot.vector))/sqrt(2000)
+coef.table[4,4] = sd(exp(end.1.vector))/sqrt(2000)
+coef.table[5,4] = sd(exp(end.HL.HL.vector))/sqrt(2000)
+coef.table[6,4] = sqrt(mean(exp(2*other.vector + 2*V.vector)) - (mean(exp(other.vector+V.vector)))^2)/sqrt(2000)
+coef.table[7,4] = sqrt(mean(exp(2*other.vector + 2*V.vector + 2*pilot.vector)) - (mean(exp(other.vector + V.vector + pilot.vector)))^2)/sqrt(2000)
+coef.table[8,4] = sqrt(mean(exp(2*end.1.vector + 2*end.HL.HL.vector)) - (mean(exp(end.1.vector + end.HL.HL.vector)))^2)/sqrt(2000)
 coef.table[1:5,1] = changeoftrend.coeffs[[9]][c(1,2,3,7,8)]
 coef.table[1:5,2] = changeoftrend.coeffs[[9]][c(13,14,15,19,20)]
 coef.table # appears that bootstrap estimates for the first 5 rows (that can be compared with model output) show that bootstrapping tends to underestimate the sd by around ...
@@ -768,13 +768,6 @@ coef.table # appears that bootstrap estimates for the first 5 rows (that can be 
 # pre-pilot Vaishali
 prepilot.vaishali = changeoftrend.coeffs[[9]][1] * changeoftrend.coeffs[[9]][2]
 prepilot.vaishali # Vaishali-specific pre-pilot AR term 0·680
-# pre-pilot CIs
-prepilot.vaishali.se = coef.table[6,4]
-prepilot.vaishali.se # 0.003
-prepilot.lower = prepilot.vaishali - 1.96*prepilot.vaishali.se
-prepilot.upper = prepilot.vaishali + 1.96*prepilot.vaishali.se 
-prepilot.lower*100 # 67.4
-prepilot.upper*100 # 68.5
 
 # other districts CIs
 changeoftrend.coeffs[[9]][1] # 0.709 
@@ -796,13 +789,6 @@ pilot.upper = changeoftrend.coeffs[[9]][3] + 1.96*changeoftrend.coeffs[[9]][15]
 (1-pilot.lower)*100 # 45.8
 (1-pilot.upper)*100 # 8.9
 
-# during-pilot Vaishali
-duringpilot.se = coef.table[7,4]
-duringpilot.lower = duringpilot-1.96*duringpilot.se
-duringpilot.upper = duringpilot+1.96*duringpilot.se
-duringpilot.lower*100 # 48.2
-duringpilot.upper*100 # 50.7
-
 (1-changeoftrend.coeffs[[9]][3]^36)*100 # 100.0% practically the pilot effect appears to eliminate all of the epidemic component when applied for 36 consecutive months, thus acting compoundly.
 
 changeoftrend.coeffs[[9]][4] # 0.270
@@ -818,7 +804,6 @@ changeoftrend.coeffs[[9]][22] # 0.171
 
 # endemic params
 changeoftrend.coeffs[[9]][7]*changeoftrend.coeffs[[9]][8] # 1.54e-06, high
-coef.table[8,4] # 2.92e-07, high
 changeoftrend.coeffs[[9]][7] # 3.72e-08, low
 changeoftrend.coeffs[[9]][19] # 1.48e-08, low
 
