@@ -279,8 +279,8 @@ d <- sum(ka.sts@observed[61:72,33]) #jan2017-dec 2017 172
 
 ## Spatial distribution
 ```{r morans}
-nb <- poly2nb(IND_adm2, queen=F) # only polygons sharing an edge (not vertex) are nbours
-lw <- nb2listw(nb, style="W", zero.policy=TRUE) # assigning equal weights
+nb <- poly2nb(IND_adm2, queen = FALSE) # only polygons sharing an edge (not vertex) are nbours
+lw <- nb2listw(nb, style="W", zero.policy = TRUE) # assigning equal weights
 IND_adm2$POPULATION <- popn.time.matrix[18,] # apply Jun 2013 (middle yr in the 
 # pre-intervention era) as the population.
 rates <- colSums(ka.sts[ka.sts@epoch <= 36]@observed)/(36/12)*10000/IND_adm2$POPULATION 
