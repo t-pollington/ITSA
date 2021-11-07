@@ -67,24 +67,24 @@ for (district in 1:33) {
 ```{r VLHIV}
   vaishali.TOT2015 = sum(df[37:48,32])
   vaishali.VLHIV2015 = sum(df[37:48,65])
-  vaishali.VLHIV2015/vaishali.TOT2015*100 # 2.9%
+  vaishali.VLHIV2015/vaishali.TOT2015*100 # 2·9%
   other.TOT2015 = sum(df[37:48,c(1:31,33)])
   other.VLHIV2015 = sum(df[37:48,c(34:64,66)])
-  other.VLHIV2015/other.TOT2015*100 # 0.1%
+  other.VLHIV2015/other.TOT2015*100 # 0·1%
   
   vaishali.TOT2016 = sum(df[49:60,32])
   vaishali.VLHIV2016 = sum(df[49:60,65])
-  vaishali.VLHIV2016/vaishali.TOT2016*100 # 8.9%
+  vaishali.VLHIV2016/vaishali.TOT2016*100 # 8·9%
   other.TOT2016 = sum(df[49:60,c(1:31,33)])
   other.VLHIV2016 = sum(df[49:60,c(34:64,66)])
-  other.VLHIV2016/other.TOT2016*100 # 1.7%
+  other.VLHIV2016/other.TOT2016*100 # 1·7%
   
   vaishali.TOT2017 = sum(df[61:72,32])
   vaishali.VLHIV2017 = sum(df[61:72,65])
-  vaishali.VLHIV2017/vaishali.TOT2017*100 # 15.1%
+  vaishali.VLHIV2017/vaishali.TOT2017*100 # 15·1%
   other.TOT2017 = sum(df[61:72,c(1:31,33)])
   other.VLHIV2017 = sum(df[61:72,c(34:64,66)])
-  other.VLHIV2017/other.TOT2017*100 # 3.9%
+  other.VLHIV2017/other.TOT2017*100 # 3·9%
 
 ```
 
@@ -220,7 +220,7 @@ round(mean(vaishali.yoy.pre.rank)) # 11th largest VL reduction averaged over 24 
 # Wilcoxon two-sample test with continuity correction
 x <- vaishali.yoy.pre.rank
 y <- vaishali.yoy.rank
-wilcox.test(x, y, alternative = "t") # p = 0.8976
+wilcox.test(x, y, alternative = "t") # p = 0·8976
 
 vaishali.incid.rank <- NULL
 for (i in 37:72) {
@@ -241,7 +241,7 @@ x <- vaishali.incid.pre.rank
 y <- vaishali.incid.rank
 wilcox.test(x, y, alternative = "t") # p < 1e-10
 ```
-Vaishali saw no change in having the 11th largest (1st=largest negative change) VL reduction, averaged over 36 monthly ranks based on year-on-year percentages during 2015-7, versus 11th largest VL reduction averaged over 24 months during 2013-4. Wilcoxon two-sample one-tailed test with continuity correction, p = 0.8976.
+Vaishali saw no change in having the 11th largest (1st=largest negative change) VL reduction, averaged over 36 monthly ranks based on year-on-year percentages during 2015-7, versus 11th largest VL reduction averaged over 24 months during 2013-4. Wilcoxon two-sample one-tailed test with continuity correction, p = 0·8976.
 
 It had the 9th highest (1st=highest) VL incidence averaged over 36 monthly incidence ranks during 2015-7, versus before the intervention when it had the 3rd highest VL incidence averaged over 36 monthly incidences (1st=highest VL incidence) during 2012-4. Same Wilcoxon test, p < 1e-10
 
@@ -286,13 +286,13 @@ IND_adm2$POPULATION <- popn.time.matrix[18,] # apply Jun 2013 (middle yr in the
 rates <- colSums(ka.sts[ka.sts@epoch <= 36]@observed)/(36/12)*10000/IND_adm2$POPULATION 
 # incidence (in person yr units) 2012-4
 set.seed(1984)
-moran.mc(rates, lw, nsim=9999) # I = 0.35856, observed rank = 9983, p-value = 0.0017
+moran.mc(rates, lw, nsim=9999) # I = 0·35856, observed rank = 9983, p-value = 0·0017
 # note nsim=9999, but in fact moran.mc does 9999+1=10000 sims
 IND_adm2$POPULATION <- popn.time.matrix[54,] # apply Jun 2016 (middle yr in the 
 # intervention) as the population
 rates <- colSums(ka.sts[ka.sts@epoch >= 37]@observed)/(36/12)*10000/IND_adm2$POPULATION 
 # incidence (in person yr units) 2015-7
-moran.mc(rates, lw, nsim=9999) # I = 0.400, observed rank = 9992, p-value = 8e-04
+moran.mc(rates, lw, nsim=9999) # I = 0·400, observed rank = 9992, p-value = 8e-04
 ```
 
 The above figures show spatial correlation with neighbouring districts both before and during the intervention; Global Moran's I = 0·36, p = 0·002 (10,000 simulations) & Global Moran's I = 0·40, p < 1e-03, respectively.
@@ -363,7 +363,7 @@ while (counter < N.desired) {
   }
 }
 hist(incub.distrib2)
-mean(incub.distrib2) #6.0mo
+mean(incub.distrib2) #6·0mo
 
 OTD.data = c(OTD.min, OTD.LQ, OTD.med, OTD.UQ, OTD.max)+1 # add 1d so lnorm can fit
 OTD.lnorm = rriskDistributions::get.lnorm.par(
@@ -380,16 +380,16 @@ while (counter < N.desired) {
 }
 OTD.distrib2 = OTD.distrib2/365*12 # convert to months
 hist(OTD.distrib2)
-mean(OTD.distrib2) # 1.34mo
+mean(OTD.distrib2) # 1·34mo
 halfOTD.distrib1 = sample(OTD.distrib2, size = N.desired, replace = TRUE)*0.5
 
 Dx.distrib = incub.distrib2 + OTD.distrib2  - halfOTD.distrib1
 hist(Dx.distrib)
-mean(Dx.distrib) # 6.5mo
-median(Dx.distrib) # 5.7mo
+mean(Dx.distrib) # 6·5mo
+median(Dx.distrib) # 5·7mo
 Dx = table(cut(Dx.distrib, breaks = -1:25))
 names(Dx) = -1:24
-sum(Dx[(1+2):(12+2)])/sum(Dx)*100 # 90.3% for lag-12
+sum(Dx[(1+2):(12+2)])/sum(Dx)*100 # 90·3% for lag-12
 Dx.12 = as.numeric(Dx[(1+2):(12+2)])
 Dx.12 = Dx.12/sum(Dx.12)
 round(mean(incub.distrib2 + OTD.distrib2)) # 7mo shift reqd
@@ -455,7 +455,7 @@ legend(x = c(14, 33), y = c(1.3, 1.67), text.width = 1,
        col=c("#56B4E9","#56B4E9","black","black"), 
        lty=c(1,2,1,2), lwd=c(4,2,4,2))
 axis(1, at = c(1,13,25,37,49,61,65), labels = c("Jan-12","Jan-13","Jan-14","Jan-15","Jan-16","Jan-17","May-17"))
-axis(2, at = seq(0.6,1.6,0.2), labels = c("0.6","0.8","1","1.2","1.4","1.6"))
+axis(2, at = seq(0.6,1.6,0.2), labels = c("0·6","0·8","1","1·2","1·4","1·6"))
 par(fig = c(0,1,0,0.5), new = TRUE)
 plot(x = 1:65, y = alldistrict.Re[1,8:72], type = "l", ylim = c(0.1,22), 
      xaxs = "i", yaxs = "i", xlab = "Inferred infection time (month)", 
@@ -470,7 +470,7 @@ abline(h = 1)
 abline(v = 6.5, lty = 2)
 axis(1, at = c(1,13,25,37,49,61,65), labels = c("Jan-12","Jan-13","Jan-14","Jan-15","Jan-16","Jan-17","May-17"))
 axis(2, at = c(0.1,0.2,0.5,1,2,5,10,20), 
-     labels = c("0.1","0.2","0.5","1","2","5","10","20"))
+     labels = c("0·1","0·2","0·5","1","2","5","10","20"))
 dev.off()
 ```
 
@@ -574,7 +574,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 M1.base = hhh4_lag(stsObj = ka.sts, control = x)
-summary(M1.base, idx2Exp = TRUE) # AIC: 10593.25
+summary(M1.base, idx2Exp = TRUE) # AIC: 10593·25
 
 # base model + intervention
 x <- list(
@@ -588,7 +588,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 M1.baseint = hhh4_lag(stsObj = ka.sts, control = x)
-summary(M1.baseint, idx2Exp = TRUE) # AIC: 10584.72
+summary(M1.baseint, idx2Exp = TRUE) # AIC: 10584·72
 
 # + seasonality in END
 x <- list(
@@ -602,7 +602,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 M1.baseintENDseas = hhh4_lag(stsObj = ka.sts, control = x)
-summary(M1.baseintENDseas, idx2Exp = TRUE) # AIC: 10403.2
+summary(M1.baseintENDseas, idx2Exp = TRUE) # AIC: 10403·2
 
 # + seasonality in AR = final model
 x <- list(
@@ -616,8 +616,8 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 final.model <- hhh4_lag(stsObj = ka.sts, control = x)
-summary(final.model, idx2Exp = TRUE) # AIC: 10281.58
-# 10281.58-10593.25 = -311.67
+summary(final.model, idx2Exp = TRUE) # AIC: 10281·58
+# 10281·58-10593·25 = -311·67
 
 # no-pilot final model (counterfactual)
 x <- list(
@@ -631,7 +631,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 final.model.nopilot <- hhh4_lag(stsObj = ka.sts, control = x)
-summary(final.model.nopilot, idx2Exp = TRUE) # AIC: 10286.16
+summary(final.model.nopilot, idx2Exp = TRUE) # AIC: 10286·16
 ```
 
 ```{r VLHIVTBprop, eval = F}
@@ -649,7 +649,7 @@ plot(x = 37:72, y = VLHIVTBprop[37:72,33], xlab = "Diagnosis month", yaxt = "n",
 lines(x = 37:72, y = rowMeans(VLHIVTBprop[37:72,1:32], na.rm = TRUE))
 lines(x = 37:72, y = VLHIVTBprop[37:72,33], lwd = 2, col = "#56B4E9")
 axis(1, at = c(37,49,61,72), labels = c("Jan-15", "Jan-16", "Jan-17", "Dec-17"))
-axis(2, at = c(0,0.1,0.2,0.3,0.35), labels = c("0","0.1","0.2","0.3","0.35"), 
+axis(2, at = c(0,0.1,0.2,0.3,0.35), labels = c("0","0·1","0·2","0·3","0·35"), 
      las = 2)
 legend("topleft", legend=c('Vaishali district','Other 32 districts mean'), col=c("#56B4E9","black"), lwd=c(4,2))
 dev.off()
@@ -696,7 +696,7 @@ x <- list(
   subset = 13:nrow(ka.sts))
 final.modelintjan15 <- hhh4_lag(stsObj = ka.sts, control = x)
 final.modelintjan15$convergence
-summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10281.58
+summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10281·58
 changeoftrend.coeffs <- summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) # work in exp() space
 
 boxplot(residuals(final.modelintjan15), use.cols = TRUE) # quite a range in the residuals by district, so makes sense to resample by district grouping for this bootstrap. See coef.bstrap.R which performed this on the High Performance Cluster.
@@ -770,44 +770,44 @@ prepilot.vaishali = changeoftrend.coeffs[[9]][1] * changeoftrend.coeffs[[9]][2]
 prepilot.vaishali # Vaishali-specific pre-pilot AR term 0·680
 
 # other districts CIs
-changeoftrend.coeffs[[9]][1] # 0.709 
-changeoftrend.coeffs[[9]][13] # 0.016
+changeoftrend.coeffs[[9]][1] # 0·709 
+changeoftrend.coeffs[[9]][13] # 0·016
 other.lower = changeoftrend.coeffs[[9]][1] - 1.96*changeoftrend.coeffs[[9]][13]
 other.upper = changeoftrend.coeffs[[9]][1] + 1.96*changeoftrend.coeffs[[9]][13]
-other.lower*100 # 67.8
-other.upper*100 # 73.9
+other.lower*100 # 67·8
+other.upper*100 # 73·9
 
 # during-pilot CIs
 duringpilot = changeoftrend.coeffs[[9]][1]*changeoftrend.coeffs[[9]][2]*
               changeoftrend.coeffs[[9]][3]
-duringpilot*100 # 49.4
-(1 - changeoftrend.coeffs[[9]][3]) * 100 # 71.7% reduction for Vaishali during the pilot
-changeoftrend.coeffs[[9]][3] # 0.727
-changeoftrend.coeffs[[9]][15] # 0.094
+duringpilot*100 # 49·4
+(1 - changeoftrend.coeffs[[9]][3]) * 100 # 71·7% reduction for Vaishali during the pilot
+changeoftrend.coeffs[[9]][3] # 0·727
+changeoftrend.coeffs[[9]][15] # 0·094
 pilot.lower = changeoftrend.coeffs[[9]][3] - 1.96*changeoftrend.coeffs[[9]][15]
 pilot.upper = changeoftrend.coeffs[[9]][3] + 1.96*changeoftrend.coeffs[[9]][15]
-(1-pilot.lower)*100 # 45.8
-(1-pilot.upper)*100 # 8.9
+(1-pilot.lower)*100 # 45·8
+(1-pilot.upper)*100 # 8·9
 
-(1-changeoftrend.coeffs[[9]][3]^36)*100 # 100.0% practically the pilot effect appears to eliminate all of the epidemic component when applied for 36 consecutive months, thus acting compoundly.
+(1-changeoftrend.coeffs[[9]][3]^36)*100 # 100·0% practically the pilot effect appears to eliminate all of the epidemic component when applied for 36 consecutive months, thus acting compoundly.
 
-changeoftrend.coeffs[[9]][4] # 0.270
-changeoftrend.coeffs[[9]][16] # 0.022
-changeoftrend.coeffs[[9]][5] # -0.664
-changeoftrend.coeffs[[9]][17] # 0.047
-changeoftrend.coeffs[[9]][9] # 0.377
-changeoftrend.coeffs[[9]][21] # 0.133
-changeoftrend.coeffs[[9]][10] # 0.515
-changeoftrend.coeffs[[9]][22] # 0.171
+changeoftrend.coeffs[[9]][4] # 0·270
+changeoftrend.coeffs[[9]][16] # 0·022
+changeoftrend.coeffs[[9]][5] # -0·664
+changeoftrend.coeffs[[9]][17] # 0·047
+changeoftrend.coeffs[[9]][9] # 0·377
+changeoftrend.coeffs[[9]][21] # 0·133
+changeoftrend.coeffs[[9]][10] # 0·515
+changeoftrend.coeffs[[9]][22] # 0·171
 
 # decided not to compute CIs for lower-priority results on non-pilot matters eg endemic/seasonal/neighbourhood contribution to avoid a sea of CIs. 
 
 # endemic params
-changeoftrend.coeffs[[9]][7]*changeoftrend.coeffs[[9]][8] # 1.54e-06, high
-changeoftrend.coeffs[[9]][7] # 3.72e-08, low
-changeoftrend.coeffs[[9]][19] # 1.48e-08, low
+changeoftrend.coeffs[[9]][7]*changeoftrend.coeffs[[9]][8] # 1·54e-06, high
+changeoftrend.coeffs[[9]][7] # 3·72e-08, low
+changeoftrend.coeffs[[9]][19] # 1·48e-08, low
 
-mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * exp(changeoftrend.coeffs[[9]][9]*1) # interpreting endemic intercept point estimate on jan 2012 for a low-incidence setting(<11 cases/mo) at its seasonal maximum (thus sin()=1, exp(A_{END}*1) = and exp(A_{END})). 0.1525025/mo on average for the 33 study districts in high season. As this is far less than 1/mo, no point calculating what it would be in low season.
+mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * exp(changeoftrend.coeffs[[9]][9]*1) # interpreting endemic intercept point estimate on jan 2012 for a low-incidence setting(<11 cases/mo) at its seasonal maximum (thus sin()=1, exp(A_{END}*1) = and exp(A_{END})). 0·1525025/mo on average for the 33 study districts in high season. As this is far less than 1/mo, no point calculating what it would be in low season.
 
 mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * exp(changeoftrend.coeffs[[9]][9]*1) * changeoftrend.coeffs[[9]][8] # for a high-incidence setting in high season, ~6 cases/mo
 
@@ -818,15 +818,15 @@ plot(final.modelintjan15, type = "season") # read-off min & max of 2nd (AR compo
 (1.31 - 0.76)*100 # 55 % May (max), November (min)
 
 # ne contribution
-changeoftrend.coeffs[[9]][6] # 4.77e-03
-changeoftrend.coeffs[[9]][6]*100 # 0.5%
-changeoftrend.coeffs[[9]][18] # 1.37e-03
+changeoftrend.coeffs[[9]][6] # 4·77e-03
+changeoftrend.coeffs[[9]][6]*100 # 0·5%
+changeoftrend.coeffs[[9]][18] # 1·37e-03
 
 # dispersion parameters
-changeoftrend.coeffs[[9]][11] # 0.060
-changeoftrend.coeffs[[9]][23] # 0.005
-changeoftrend.coeffs[[9]][12] # 0.115
-changeoftrend.coeffs[[9]][24] # 0.018
+changeoftrend.coeffs[[9]][11] # 0·060
+changeoftrend.coeffs[[9]][23] # 0·005
+changeoftrend.coeffs[[9]][12] # 0·115
+changeoftrend.coeffs[[9]][24] # 0·018
 ```
 
 ```{r final-model-separated-components}
@@ -912,7 +912,7 @@ VLpred <- lapply(mget(models2compare), oneStepAhead_hhh4lag,
                         tp = 37, type = "rolling", which.start = "current")
 SCORES <- c("rps","ses")
 VLscores = lapply(VLpred, scores, which = SCORES, individual = TRUE)
-t(sapply(VLscores, colMeans, dims = 2)) # final & counterfactual models have lower RPS than base model (2.82). counterfactual (2.46) has higher predictive power than final model (2.50)
+t(sapply(VLscores, colMeans, dims = 2)) # final & counterfactual models have lower RPS than base model (2·82). counterfactual (2·46) has higher predictive power than final model (2·50)
 predictivePower(final.model, M1.base, seed = 2030) # p < 1e-05
 
 # final model using diagnostic SI distrib. vs different distributed-lag
@@ -1015,7 +1015,7 @@ VLpred <- lapply(mget(models2compare), oneStepAhead_hhh4lag,
                         tp = 48, type = "rolling", which.start = "current")
 SCORES <- c("rps","ses")
 VLscores = lapply(VLpred, scores, which = SCORES, individual = TRUE)
-t(sapply(VLscores, colMeans, dims = 2)) # final.modelintjan15 best (rps = 2.08) wrt predictive performance 
+t(sapply(VLscores, colMeans, dims = 2)) # final.modelintjan15 best (rps = 2·08) wrt predictive performance 
 
 par(mfrow = c(1,4))
 for (m in models2compare){
@@ -1028,8 +1028,8 @@ svg(filename = "figS10PIT.svg", width = 8, height = 5.3)
 par(family = "serif")
 surveillance::pit(VLpred[[4]], plot = list(ylim = c(0, 1.3), xaxs = "i", 
                                            yaxs = "i", xaxt = "n", yaxt = "n"))
-axis(1, at = seq(0,1,0.2), labels = c(0,0.2,0.4,0.6,0.8,1))
-axis(2, at = c(0,0.4,0.8,1,1.2), labels = c(0,0.4,0.8,1,1.2), las = 2)
+axis(1, at = seq(0,1,0.2), labels = c("0","0·2","0·4","0·6","0·8","1"))
+axis(2, at = c(0,0.4,0.8,1,1.2), labels = c("0","0·4","0·8","1","1·2"), las = 2)
 dev.off()
 ```
 
@@ -1046,7 +1046,7 @@ x <- list(
   subset = 13:nrow(ka.sts))
 final.modelwithout <- hhh4_lag(stsObj = ka.sts, control = x)
 final.modelwithout$convergence
-summary(final.modelwithout, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10286.16
+summary(final.modelwithout, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10286·16
 
 time.period <- c(48,71) # 48 matches the value in predictivePower()
 
@@ -1139,7 +1139,7 @@ averted <- colSums(y.sim.diff)
 averted.median <- round(median(averted)) # median is better to report. 354
 summary(averted)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-# -378.0   234.0   354.0   360.6   479.0  1285.0 
+# -378·0   234·0   354·0   360·6   479·0  1285·0 
 averted.mean = round(mean(averted))
 round(mean(averted) - sd(averted)/sqrt(no.sims)*1.96) # 359
 round(mean(averted) + sd(averted)/sqrt(no.sims)*1.96) # 362
@@ -1165,9 +1165,9 @@ dev.off()
 y.sim.diff2 = y.sim.noint.2012Dec14[,33,] - y.sim.final.model.pred[,33,]
 avertedsum = colSums(y.sim.diff2)
 countersum = colSums(y.sim.noint.2012Dec14[1:36,33,])
-median(avertedsum/countersum*100) # 30.7%
+median(avertedsum/countersum*100) # 30·7%
 
-sum(ka.sts@observed[61:72,33])/popn.time.matrix[72,33]*10000 # On a district-basis, Vaishali is below the elimination threshold. # 0.41/10Kpersonyr
+sum(ka.sts@observed[61:72,33])/popn.time.matrix[72,33]*10000 # On a district-basis, Vaishali is below the elimination threshold. # 0·41/10Kpersonyr
 
 # what % extra reduction vs counterfactual, by using y-o-y decreases
 modelcases15 = colSums(y.sim.final.model.pred[1:12,33,])
@@ -1178,12 +1178,12 @@ extra16 = (modelcases15 - modelcases16)/modelcases15
 countercases16 = colSums(y.sim.noint.2012Dec14[13:24,33,])
 counter16 = (countercases15 - countercases16)/countercases15
 counter16[counter16 == 0] = NA # avoids Inf %
-summary((extra16/counter16*100))-100 # 36.8 LQ, 93.6 med, 202.1 UQ
+summary((extra16/counter16*100))-100 # 36·8 LQ, 93·6 med, 202·1 UQ
 
 modelcases17 = colSums(y.sim.final.model.pred[25:36,33,])
 extra17 = (modelcases16 - modelcases17)/modelcases16
 countercases17 = colSums(y.sim.noint.2012Dec14[25:36,33,])
 counter17 = (countercases16 - countercases17)/countercases16
 counter17[counter17 == 0] = NA # avoids Inf %
-summary((extra17/counter17*100))-100 # -44.20 lQ, 29.1 med, 137.9 UQ
+summary((extra17/counter17*100))-100 # -44·20 LQ, 29·1 med, 137·9 UQ
 ```
