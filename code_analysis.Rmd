@@ -1,15 +1,15 @@
 ---
-title: "Code analysis: Impact of intensified control strategies on incidence of visceral leishmaniasis in a highly endemic district of Bihar, India"
-author: "written by Timothy M Pollington and reviewed by Lloyd AC Chapman"
-date: "19/10/2021"
+title: "Code analysis: Impact of intensified control on visceral leishmaniasis in a highly-endemic district of Bihar, India: an interrupted time series analysis"
+author: "written by Timothy M Pollington & reviewed by Lloyd AC Chapman"
+date: "07 Nov 2021"
 output: pdf_document
 ---
 
 # Preamble
-Code run in *R* v.4.1.1 with *RStudio* v1.4.1717 and main package \texttt{surveillance} v1.19.1 and \texttt{hhh4addon} v0.0.0.0.9014. Unfortunately although the data is not publicly available, we hope this code will help those wishing to apply interrupted time-series analyses to their own data.
+Code run in *R* v.4.1.1 with *RStudio* v1.4.1717 and main package \texttt{surveillance} v1.19.1 & \texttt{hhh4addon} v0.0.0.0.9014. Run on a Dell Precision M2800 laptop on Windows 10. Unfortunately although the data is not publicly available, we hope this code will help those wishing to apply interrupted time-series analyses to their own data.
 
 ## Load libraries & programme data
-```{r lib-load, results='hide'}
+```{r lib-load, results = 'hide'}
 rm(list = ls()) # clean workspace
 library(abind) # v1.4-5 combining matrices into an array
 library(EpiEstim) # v2.2-4 estimate_R()
@@ -27,13 +27,13 @@ library(surveillance) # v1.19.1 poly2adjmat(), hhh4_spacetime classes
 library(HDInterval) # v0.2.2
 
 folder.loc = "hidden_location_sorry"
-fig.loc = paste0(folder.loc,"/paper/manuscript_files/manuscript_svg")
+fig.loc = "hidden_location_sorry2"
 setwd(folder.loc)
 df <- read.dta13('vl_incl_coinfs.dta')
 ```
 
-```{r correct-district-names, include=FALSE}
-#correct district names to match Census 2011 versions
+## correct district names to match Census 2011 versions
+```{r correct-district-names, include = FALSE}
 colnames(df)[23] <- 'purniaka'
 colnames(df)[122] <- 'purniaka_hiv'
 colnames(df)[155] <- 'purniavlhivtb'
@@ -44,10 +44,10 @@ colnames(df)[33] <- 'paschimchamparanka'
 colnames(df)[132] <- 'paschimchamparan_hiv'
 colnames(df)[165] <- 'paschimchamparanvlhivtb'
 
-df = df[,c(1:33,100:166)] # drop death and pkdl cases
+df = df[,c(1:33,100:166)] # drop death & PKDL cases
 df[,101:133] = 0
 df = df[,c(1:99,101:133,100)] # swap month col out to end col
-district.names = substr(colnames(df)[1:33],1,nchar(colnames(df)[1:33])-2)
+district.names = substr(colnames(df)[1:33], 1, nchar(colnames(df)[1:33])-2)
 colnames(df)[1:33] = paste0(district.names,"TOTAL")
 colnames(df)[34:66] = paste0(district.names,"VLHIVTB")
 colnames(df)[67:99] = paste0(district.names,"VLHIVTBprop")
@@ -88,26 +88,27 @@ for (district in 1:33) {
 
 ```
 
-## Estimating district populations for 2012-7 from census data
+## Estimating district populations for 2012–7 from census data
 The population is estimated by a monthly geometric progression using the decadal change between the 2001 & 2011 censuses. We assume a constant population increase during each decadal period.
 
-```{r popn-estimate, results='hide'}
+```{r popn-estimate, results = 'hide'}
 df.ka <- df[,c(1:33,133)] # take the TOTALs and month number column
 setwd(folder.loc)
-popn.df <- read.csv(file = 'Pop09_16v4.csv') # contains popn estimates 2012-7
+popn.df <- read.csv(file = 'Pop09_16v4.csv') # contains popn estimates 2012–7
 popn.df[,1] # note Vaishali is row 32 in popn.df
 popn.df <- popn.df[1:33,c(1,4:76)] # remove irrelevant cells
 popn.df <- as.matrix(popn.df) # matrix coercion prevents later subsetting making a list
-popn.time.matrix <- matrix(0,nrow = 72,ncol = 33) # 72mo x 33districts. 1st row = Jan 2012
+popn.time.matrix <- matrix(0, nrow = 72, ncol = 33) # 72mo x 33districts. 1st row = Jan 2012
 popn.time.matrix <- t(popn.df[1:33,3:74])
-popn.time.matrix <- mapply(popn.time.matrix, FUN=as.numeric) # these two lines necessary 
+popn.time.matrix <- mapply(popn.time.matrix, FUN = as.numeric) # these two lines necessary 
 # to change it from a character matrix.
-popn.time.matrix <- matrix(data=popn.time.matrix, nrow = 72, ncol = 33)
+popn.time.matrix <- matrix(data = popn.time.matrix, nrow = 72, ncol = 33)
 ```
 
 # Study area
-There were 33 study districts in Bihar State, as no consistent data for other 5.
+There were 33 study districts in Bihar State, as no consistent data for other five.
 This is a map of Bihar state:
+
 ```{r map-of-the-state}
 IND_adm2 <- readRDS(paste0(folder.loc,"/IND_adm2.rds")) 
 # from https://gadm.org/maps/IND/bihar.html
@@ -122,18 +123,18 @@ text(coordinates(IND_adm2), labels = IND_adm2$NAME_2, cex = 0.6)
 
 # Descriptive analysis
 
-## Case number changes
-In Vaishali district during the intervention years 2015-7, monthly case numbers have declined in absolute terms versus the state mean and its highly-endemic neighbour (Saran).
+## Case count changes
+In Vaishali district during the intervention years 2015–7, monthly case numbers have declined in absolute terms versus the state mean and its highly-endemic neighbour (Saran).
 
-```{r abs-case-numbers-graph, eval=FALSE}
+```{r abs-case-numbers-graph, eval = FALSE}
 df.ka$KA.mean <- rowMeans(df.ka[,c(1:31,33)]) # calc monthly KA ave., without Vaishali(32)
-df.ka.melt <- melt(data = df.ka,id.vars = 'month')
+df.ka.melt <- melt(data = df.ka, id.vars = 'month')
 labelDistrict <- function(x){
   x <- switch(as.character(x),'vaishaliTOTAL'='Vaishali (V)',
               'KA.mean'='State mean (excl. V)')
   return(x)
 }
-df.ka.melt$district <- as.character(lapply(X = df.ka.melt$variable,FUN = labelDistrict))
+df.ka.melt$district <- as.character(lapply(X = df.ka.melt$variable, FUN = labelDistrict))
 df.ka.melt$value <- as.integer(df.ka.melt$value)
 upperCI <- function(x){
   x <- poisson.test(x, conf.level = 0.95)$conf.int[2]
@@ -148,12 +149,12 @@ df.ka.melt$lowerci <- sapply(X = df.ka.melt$value, FUN = lowerCI)
 # overwrite the lower/upper CIs for KA.mean
 for (i in 2377:2448) {
   x <- (df.ka.melt[df.ka.melt[,1] == df.ka.melt[i,1],3])[c(1:31, 33)]
-  df.ka.melt$lowerci[i] <- as.numeric(exp(confint(glm(x ~ 1, family=poisson)))[1])
-  df.ka.melt$upperci[i] <- as.numeric(exp(confint(glm(x ~ 1, family=poisson)))[2])
+  df.ka.melt$lowerci[i] <- as.numeric(exp(confint(glm(x ~ 1, family = poisson)))[1])
+  df.ka.melt$upperci[i] <- as.numeric(exp(confint(glm(x ~ 1, family = poisson)))[2])
 }
 df.ka.melt$district <- factor(df.ka.melt$district, 
                               levels = c("Vaishali (V)", "State mean (excl. V)")) 
-# for legend order
+# legend order
 graph <- ggplot(data = df.ka.melt)
 graph <- graph +
 geom_ribbon(data = df.ka.melt[df.ka.melt$district == "State mean (excl. V)",], 
@@ -167,16 +168,16 @@ geom_ribbon(data = df.ka.melt[df.ka.melt$district == "Vaishali (V)",],
 geom_line(data = df.ka.melt[df.ka.melt$district == "Vaishali (V)",], 
           aes(x = month, y = value, group = district, colour = district), size = 1.5)
 graph <- graph + scale_color_manual(breaks = c("Vaishali (V)","State mean (excl. V)"), 
-                                    values=c("#56B4E9", "#000000"), 
+                                    values = c("#56B4E9", "#000000"), 
                                     guide = guide_legend(title = "District")) + 
-  scale_fill_manual(values=c("#56B4E9", "#000000"), guide = F)
+  scale_fill_manual(values = c("#56B4E9", "#000000"), guide = F)
 graph <- graph + labs(x = "Diagnosis month during 2012–2017", y = "Number of VL cases", 
                       color = "District") + 
-  guides(color=guide_legend(override.aes=list(fill=NA)))
+  guides(color = guide_legend(override.aes = list(fill = NA)))
 graph <- graph + 
   theme(text = element_text(family = "serif", size = 10), plot.title = element_text(face = "bold"), 
-        legend.position = c(0.9,0.8), legend.title = element_text(face="bold"), 
-        legend.background = element_rect(linetype="solid", colour = "black"), 
+        legend.position = c(0.9,0.8), legend.title = element_text(face = "bold"), 
+        legend.background = element_rect(linetype = "solid", colour = "black"), 
         panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
         panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
   scale_y_continuous(expand = c(0,0), breaks = c(0,60,120,180,240,300)) + 
@@ -188,34 +189,34 @@ graph
 dev.off()
 ```
 
+## Rank change analysis
 ```{r rank-changes-of-yoy-incidence-or-monthly-percent}
-# rank change analysis
 df3 <- df[,c(1:33,133)]
 # yoy calc for 'during intervention'
 for (i in 1:33) {
   district.yoy <- c(rep(NA,36),(df3[37:nrow(df3),i] - df3[25:(nrow(df3)-12),i]) / 
                       df3[25:(nrow(df3)-12),i]*100)
-  df3 <- cbind(df3,district.yoy)
+  df3 <- cbind(df3, district.yoy)
 }
 colnames(df3)[35:67] <- paste0(colnames(df3)[1:33],'.yoy')
 vaishali.yoy.rank <- NULL
 for (i in 37:nrow(df3)) {
-  vaishali.yoy.rank <- c(vaishali.yoy.rank,as.numeric(rank(df3[i,35:67]/popn.time.matrix[i,])[32]))
+  vaishali.yoy.rank <- c(vaishali.yoy.rank, as.numeric(rank(df3[i,35:67]/popn.time.matrix[i,])[32]))
 }
 round(mean(vaishali.yoy.rank)) # 11th largest VL reduction averaged over 36 monthly y-o-y 
-# percentages (1st=largest negative change) during 2015-7
+# percentages (1st = largest negative change) during 2015–7
 for (i in 1:33) {
-  district.yoy.pre <- c(rep(NA,12),(df3[13:36,i] - df3[1:(36-12),i]) / 
-                          df3[1:(36-12),i]*100,rep(NA,36))
-  df3 <- cbind(df3,district.yoy.pre)
+  district.yoy.pre <- c(rep(NA,12), (df3[13:36,i] - df3[1:(36-12),i]) / 
+                          df3[1:(36-12),i]*100, rep(NA,36))
+  df3 <- cbind(df3, district.yoy.pre)
 }
 colnames(df3)[68:100] <- paste0(colnames(df3)[1:33],'.yoy.pre')
 vaishali.yoy.pre.rank <- NULL
 for (i in 13:36) {
-  vaishali.yoy.pre.rank <- c(vaishali.yoy.pre.rank,as.numeric(rank(df3[i,68:100]/popn.time.matrix[i,])[32]))
+  vaishali.yoy.pre.rank <- c(vaishali.yoy.pre.rank, as.numeric(rank(df3[i,68:100]/popn.time.matrix[i,])[32]))
 }
 round(mean(vaishali.yoy.pre.rank)) # 11th largest VL reduction averaged over 24 monthly 
-# y-o-y percentages (1st=largest negative change) during 2013-4
+# y-o-y percentages (1st = largest negative change) during 2013–4
 
 # Wilcoxon two-sample test with continuity correction
 x <- vaishali.yoy.pre.rank
@@ -228,34 +229,35 @@ for (i in 37:72) {
                            as.numeric(rank(-1 * (rank(df3[i,1:33]/popn.time.matrix[i,])))[32]))
 }
 round(mean(vaishali.incid.rank)) # 9th highest VL incidence averaged over 36 mo
-# (1st=largest VL incidence) during 2015-7
+# (1st = largest VL incidence) during 2015–7
 vaishali.incid.pre.rank <- NULL
 for (i in 1:36) {
   vaishali.incid.pre.rank <- c(vaishali.incid.pre.rank,
                                as.numeric(rank(-1 * (rank(df3[i,1:33]/popn.time.matrix[i,])))[32]))
 }
 round(mean(vaishali.incid.pre.rank)) # 3rd highest VL incidence averaged over 36 monthly 
-# incidences (1st=largest VL incidence) during 2012-4
+# incidences (1st = largest VL incidence) during 2012–4
+
 # Wilcoxon two-sample test with continuity correction
 x <- vaishali.incid.pre.rank
 y <- vaishali.incid.rank
 wilcox.test(x, y, alternative = "t") # p < 1e-10
 ```
-Vaishali saw no change in having the 11th largest (1st=largest negative change) VL reduction, averaged over 36 monthly ranks based on year-on-year percentages during 2015-7, versus 11th largest VL reduction averaged over 24 months during 2013-4. Wilcoxon two-sample one-tailed test with continuity correction, p = 0·8976.
+Vaishali saw no change in having the 11th largest (1st = largest negative change) VL reduction, averaged over 36 monthly ranks based on year-on-year percentages during 2015–7, versus 11th largest VL reduction averaged over 24 months during 2013–4. Wilcoxon two-sample one-tailed test with continuity correction, p = 0·8976.
 
-It had the 9th highest (1st=highest) VL incidence averaged over 36 monthly incidence ranks during 2015-7, versus before the intervention when it had the 3rd highest VL incidence averaged over 36 monthly incidences (1st=highest VL incidence) during 2012-4. Same Wilcoxon test, p < 1e-10
+It had the 9th highest (1st = highest) VL incidence averaged over 36 monthly incidence ranks during 2015–7, versus before the intervention when it had the 3rd highest VL incidence averaged over 36 monthly incidences (1st = highest VL incidence) during 2012–4. Same Wilcoxon test, p < 1e-10
 
 Although the first result appears to indicate no change in % reduction wrt other districts, while the second a significant change in incidence with respect to the other districts, together these are not a contradiction. It is possible to change from 12th to 11th out of 33 districts in the first metric while improving 3rd to 9th/33 in the other metric; since *some* of the 1st to 10th districts reducing more in % than Vaishali before the pilot in the first metric, could have switched to 12th to 33rd places during the pilot, leading them to newly appear in the 1st to 8th highest incidences in the second metric during the pilot.
 
 In the next section we will use a time-series model to account for factors other than the intervention effect that may have caused this to come about.
 
 ## Creating ka.sts object
-```{r ka.sts-creation, include=FALSE}
-distt_nbOrder <- nbOrder(poly2adjmat(IND_adm2),maxlag = 1) # maxlag=1 ie 1storder nbours
+```{r ka.sts-creation, include = FALSE}
+distt_nbOrder <- nbOrder(poly2adjmat(IND_adm2), maxlag = 1) # maxlag = 1 ie 1storder nbours
 # IND_adm2$NAME_2
 # colnames(df.ka)
-df.ka <- df[,c(1:8,10:21,33,22,9,23:32)] # ordered so that it matches IND_adm2.
-popn.time.matrix <- popn.time.matrix[,c(1:8,10:21,33,22,9,23:32)] # popn.time.matrix 
+df.ka <- df[,c(1:8, 10:21, 33, 22, 9, 23:32)] # ordered so that it matches IND_adm2.
+popn.time.matrix <- popn.time.matrix[,c(1:8, 10:21, 33, 22, 9, 23:32)] # popn.time.matrix 
 # ordered to match IND_adm2
 #paste(colnames(df.ka), IND_adm2$OBJECTID, sep = '') # these are the district names 
 # linked to shapefile ID for reference
@@ -268,58 +270,58 @@ sum(ka.sts@observed[1:36,33]) # 3,598 used in abstract
 sum(ka.sts@observed[37:72,33]) # 762 used in abstract
 
 #crude comparison
-a <- sum(ka.sts@observed[25:36,33]) #jan2014-dec 2014 664, quoted in intro and results
-b <- sum(ka.sts@observed[37:48,33]) #jan2015-dec 2015 411, quoted in intro and results
-c <- sum(ka.sts@observed[49:60,33]) #jan2016-dec 2016 179, quoted in intro and results
+a <- sum(ka.sts@observed[25:36,33]) #jan2014-dec 2014 664, quoted in Intro & Results
+b <- sum(ka.sts@observed[37:48,33]) #jan2015-dec 2015 411, quoted in Intro & Results
+c <- sum(ka.sts@observed[49:60,33]) #jan2016-dec 2016 179, quoted in Intro & Results
 d <- sum(ka.sts@observed[61:72,33]) #jan2017-dec 2017 172
 
-(b-a)/a*100 # -38·1%, quoted in intro and results
-(c-b)/b*100 # -56·4%, quoted in intro and results
+(b-a)/a*100 # -38·1%, quoted in Intro & Results
+(c-b)/b*100 # -56·4%, quoted in Intro & Results
 ```
 
 ## Spatial distribution
 ```{r morans}
 nb <- poly2nb(IND_adm2, queen = FALSE) # only polygons sharing an edge (not vertex) are nbours
-lw <- nb2listw(nb, style="W", zero.policy = TRUE) # assigning equal weights
+lw <- nb2listw(nb, style = "W", zero.policy = TRUE) # assigning equal weights
 IND_adm2$POPULATION <- popn.time.matrix[18,] # apply Jun 2013 (middle yr in the 
 # pre-intervention era) as the population.
 rates <- colSums(ka.sts[ka.sts@epoch <= 36]@observed)/(36/12)*10000/IND_adm2$POPULATION 
-# incidence (in person yr units) 2012-4
+# incidence (in person yr units) 2012–4
 set.seed(1984)
-moran.mc(rates, lw, nsim=9999) # I = 0·35856, observed rank = 9983, p-value = 0·0017
-# note nsim=9999, but in fact moran.mc does 9999+1=10000 sims
+moran.mc(rates, lw, nsim = 9999) # I = 0·35856, observed rank = 9983, p-value = 0·0017
+# note nsim = 9999, but in fact moran.mc does 9999+1=10000 sims
 IND_adm2$POPULATION <- popn.time.matrix[54,] # apply Jun 2016 (middle yr in the 
 # intervention) as the population
 rates <- colSums(ka.sts[ka.sts@epoch >= 37]@observed)/(36/12)*10000/IND_adm2$POPULATION 
-# incidence (in person yr units) 2015-7
-moran.mc(rates, lw, nsim=9999) # I = 0·400, observed rank = 9992, p-value = 8e-04
+# incidence (in person yr units) 2015–7
+moran.mc(rates, lw, nsim = 9999) # I = 0·400, observed rank = 9992, p-value = 8e-04
 ```
 
-The above figures show spatial correlation with neighbouring districts both before and during the intervention; Global Moran's I = 0·36, p = 0·002 (10,000 simulations) & Global Moran's I = 0·40, p < 1e-03, respectively.
+The above figures show spatial correlation with neighbouring districts both before & during the intervention; Global Moran's I = 0·36, p = 0·002 (10,000 simulations) & Global Moran's I = 0·40, p < 1e-03, respectively.
 
-# Model development using surveilance::hhh4 and hhh4addon
+# Model development using surveilance::hhh4 & hhh4addon packages
 ## Picking a cutoff for 'high/low endemicity'
-We assign districts to low and high endemic groups based on visually picking a cutoff from the distribution of the number of villages and their respective cumulative study case numbers. It seems the distribution is a mixture of two and we chose the lowest 18 districts as 'low-endemic'; each group had a different overdispersion parameter.
+We assign districts to low & high endemic groups based on visually picking a cutoff from the distribution of the number of villages and their respective cumulative study case numbers. It seems the distribution is a mixture of two and we chose the lowest 18 districts as 'low-endemic' and 'high-endemic' for the rest; each group had a different overdispersion parameter.
 
 ```{r highlow-choose}
 IND_adm2$POPULATION <- popn.time.matrix[36,] # apply Dec 2014 (middle yr in the data) as 
 # the population
 ka.sts <- sts(observed = counts, start = c(2012, 1), frequency = 12, map = IND_adm2, 
               population = popn.time.matrix, neighbourhood = distt_nbOrder)
-# H and L distt selection below
-h <- hist(colSums(ka.sts@observed),nclass = 10, plot = F)
+# High & low-endemicity district selection
+h <- hist(colSums(ka.sts@observed), nclass = 10, plot = F)
 bar.colour <- ifelse(h$breaks < 1000, "#009E73", "#CC79A7")[-length(h$breaks)]
 setwd(fig.loc)
 svg(filename = "figS2highlowhist.svg", width = 13.66, height = 7.68)
 par(family = "serif")
-plot(h,col = bar.colour, main = NULL, xlab = 'Total VL cases during 2012-2017', 
+plot(h,col = bar.colour, main = NULL, xlab = 'Total VL cases during 2012–2017', 
      ylab = 'Number of districts', xaxs = "i", yaxs = "i", yaxt = "n",
      family = "serif")
 axis(2, at = seq(0,12,2), labels = c("0","2","4","6","8","10","12"), las = 2)
-legend(c(4000,5300),c(9.75,11),
+legend(c(4000,5300),c(9.75, 11),
 legend = c(TeX('high endemicity $\\psi_H$ ($\\geq$1000 cases)'),
            TeX('low endemicity $\\psi_L$ ($<$1000 cases)')),
-col=c('#CC79A7', '#009E73'), pch = c(15,15), pt.cex = 1.5)
+col = c('#CC79A7', '#009E73'), pch = c(15,15), pt.cex = 1.5)
 dev.off()
 HL.factor <- rep(NA,33)
 HL.factor[order(colSums(ka.sts@observed))[1:18]] <- 'L'
@@ -327,19 +329,19 @@ HL.factor[-order(colSums(ka.sts@observed))[1:18]] <- 'H'
 HL.factor <- as.factor(HL.factor)
 ```
 
-## Estimate a reasonable diagnosis-to-diagnosis interval for VL
-Using infection-to-onset time from Chapman et al.'s 6-state Markov model (Table A8 of Quantification...) 135 (109–167) days, gives the incubation period mean. This was from BG but assumed to be the same for India. From the same data but a different analysis (Chapman et al.'s PNAS paper) we took the overdispersion term. Together we generated the incubation period distribution as a Negative Binomial distribution.
+## Estimate a reasonable diagnosis-to-diagnosis serial interval for VL
+Using infection-to-onset time from Chapman et al.'s 6-state Markov model (doi: 10.1186/s13071-015-1136-3, Table A8) 135 (109–167) days, gives the incubation period mean. This was from Bangladesh but assumed to be the same for India. From the same data but a different analysis (Chapman et al.'s doi: 10.1073/pnas.2002731117) we obtained the overdispersion term. Together we generated the incubation period distribution as a Negative Binomial distribution.
 
-The infectiousness period was obtained from Jervis et al from their 2012-2013 study of onset-to-diagnosis time. We used the latter results from late 2013 and assumed these characteristics remained constant since 2013 until 2017. The times were read off the curve using pixel measurements and a log-normal distribution fitted. 
+The infectiousness period was obtained from Jervis et al (doi: 10.1186/s13071-017-2530-9) from their 2012–2013 study of onset-to-diagnosis time. We used the latter results from late 2013 and assumed these characteristics remained constant since 2013 until 2017. The times were read off the curve using pixel measurements and a log-normal distribution fitted. 
 
 ```{r estimate DxtoDx distribution}
-# pixel length measurements from Jervis et al. figure S1. Q3 2012
-zero.graph=652
-min.graph=652
-LQ.graph=618
-med.graph=594
-UQ.graph=559
-max.graph=132
+# pixel length measurements from Jervis et al. figure S1. Q3 2012 (doi: 10.1186/s13071-017-2530-9)
+zero.graph = 652
+min.graph = 652
+LQ.graph = 618
+med.graph = 594
+UQ.graph = 559
+max.graph = 132
 threehundred.graph = 96
 
 OTD.min = abs(min.graph - zero.graph)/abs(threehundred.graph - zero.graph)*300
@@ -354,8 +356,7 @@ counter = 0
 N.desired = 1e5
 while (counter < N.desired) {
   store.sample = rnbinom(n = 1, size = 3, prob = 0.35)
-  # table S4 https://www.medrxiv.org/content/10.1101/2020.02.24.20023325v1.full.pdf and
-  # p4 out of 37.
+  # table S4 doi: 10.1073/pnas.2002731117 & p4 out of 37.
   if(store.sample <= 24 & store.sample != 0){
     # disallow 0 months in keeping with source for p which had strictly positive support
     incub.distrib2 = c(incub.distrib2, store.sample)
@@ -398,10 +399,11 @@ I = ka.sts@observed[,33]
 I.other = rowSums(ka.sts@observed[,-33])
 t_start <- seq(2,(length(I)-5))
 t_end <- t_start + 5
-Dx.Re = c(0,Dx.12)
+Dx.Re = c(0, Dx.12)
 ```
 
-```{r effective-reproduction-numbers, eval=FALSE}
+## Estimate effective reproduction numbers
+```{r effective-reproduction-numbers, eval = FALSE}
 library(EpiEstim) # estimate_R()
 alldistrict.Re = matrix(NA, nrow = 33, ncol = 72)
 for (district in 1:33) {
@@ -437,8 +439,8 @@ other.upper = c(rep.int(0,6), estimate_R(incid = I.other, method = "si_from_samp
 
 setwd(fig.loc)
 svg(filename = "fig3re.svg", width = (11*2/2.5), height = (11*2/2.5))
-par(mfrow = c(2,1), family = "serif", mai=c(0.9,1,0.1,0.1),
-    fig=c(0,1,0.5,1))
+par(mfrow = c(2,1), family = "serif", mai = c(0.9,1,0.1,0.1),
+    fig = c(0,1,0.5,1))
 plot(x = 1:65, y = other.Re[8:72], type = "l", lwd = 2, 
      ylim = c(0.47,1.7), xaxs = "i", yaxs = "i", xlab = "",
      ylab = bquote("Effective reproduction number "~ R[e] ~"("~t~")"), xaxt = "n", 
@@ -451,10 +453,10 @@ lines(x = 1:65, y = Vaishali.Re[8:72], lwd = 4, col = "#56B4E9")
 abline(h = 1)
 abline(v = 6.5, lty = 2)
 legend(x = c(14, 33), y = c(1.3, 1.67), text.width = 1, 
-       legend=c('Vaishali district mean', '95%CI', 'Other 32 districts mean', '95%CI'), 
-       col=c("#56B4E9","#56B4E9","black","black"), 
-       lty=c(1,2,1,2), lwd=c(4,2,4,2))
-axis(1, at = c(1,13,25,37,49,61,65), labels = c("Jan-12","Jan-13","Jan-14","Jan-15","Jan-16","Jan-17","May-17"))
+       legend = c('Vaishali district mean', '95%CI', 'Other 32 districts mean', '95%CI'), 
+       col = c("#56B4E9", "#56B4E9", "black", "black"), 
+       lty = c(1, 2, 1, 2), lwd = c(4, 2, 4, 2))
+axis(1, at = c(1, 13, 25, 37, 49, 61, 65), labels = c("Jan-12","Jan-13","Jan-14","Jan-15","Jan-16","Jan-17","May-17"))
 axis(2, at = seq(0.6,1.6,0.2), labels = c("0·6","0·8","1","1·2","1·4","1·6"))
 par(fig = c(0,1,0,0.5), new = TRUE)
 plot(x = 1:65, y = alldistrict.Re[1,8:72], type = "l", ylim = c(0.1,22), 
@@ -475,10 +477,10 @@ dev.off()
 ```
 
 # Spatiotemporal model
-
+## Model development
 ```{r model-development}
 # calcDxconst() produces an intervention term according to the start month which is 
-# weighted to account for the fact that in a distributed lag model only the first lags
+# weighted to account for the fact that in a distributed lag model, only the first lags
 # will see the effect first.
 calcDxconst <- function(startmonth, method = "SI", par_lag = NULL) {
   int.constlag <- matrix(data = 0, nrow = dim(ka.sts)[1], ncol = dim(ka.sts)[2])
@@ -493,7 +495,7 @@ calcDxconst <- function(startmonth, method = "SI", par_lag = NULL) {
       # and goes back in time to lag12.
     lag = lag + 1
   }
-  Dx.const = rep.int(0,studytimeleft)
+  Dx.const = rep.int(0, studytimeleft)
   if(method == "SI"){
     Dx.const[1] = Dx.12[1]*casecorrection[1]
     for (lag in 2:12) {
@@ -538,11 +540,12 @@ vaishali <- matrix(data = c(rep.int(0, times = dim(ka.sts)[1]*dim(ka.sts)[2] - 7
                             rep.int(1, times = 72)),
                    nrow = dim(ka.sts)[1], ncol = dim(ka.sts)[2], byrow = F)
 
-int.jan15constlag = calcDxconst(37)
+int.jan15constlag = calcDxconst(37) # set pilot start month as the 37th month i.e. January 2015
+# set high/low-incidence endemic component intercept variable
 end.HL.11 = matrix(data = 0, nrow = 72, ncol = 33)
 end.HL.11[ka.sts@observed >= 11] = 1 # high-endemic := ">= 11 cases/mo"
 # 11 threshold obtained via AIC optimisation through values 1:
-# range(ka.sts@observed) # 0--259
+# range(ka.sts@observed) # 0–259
 # AICvalue = vector(mode = "numeric", length = 259)
 # for (i in 1:259) {
 #   end.HL.t = matrix(data = 0, nrow = 72, ncol = 33)
@@ -634,6 +637,7 @@ final.model.nopilot <- hhh4_lag(stsObj = ka.sts, control = x)
 summary(final.model.nopilot, idx2Exp = TRUE) # AIC: 10286·16
 ```
 
+## Plotting VL-HIV/TB proportion
 ```{r VLHIVTBprop, eval = F}
 # does VLHIVTBprop vary with time?
 VLHIVTBprop = df[,(c(1:8,10:21,33,22,9,23:32)+66)]
@@ -651,7 +655,7 @@ lines(x = 37:72, y = VLHIVTBprop[37:72,33], lwd = 2, col = "#56B4E9")
 axis(1, at = c(37,49,61,72), labels = c("Jan-15", "Jan-16", "Jan-17", "Dec-17"))
 axis(2, at = c(0,0.1,0.2,0.3,0.35), labels = c("0","0·1","0·2","0·3","0·35"), 
      las = 2)
-legend("topleft", legend=c('Vaishali district','Other 32 districts mean'), col=c("#56B4E9","black"), lwd=c(4,2))
+legend("topleft", legend = c('Vaishali district','Other 32 districts mean'), col = c("#56B4E9","black"), lwd = c(4,2))
 dev.off()
 ```
 
@@ -678,10 +682,13 @@ for (month in 33:45) {
   Y[i] <- summary(intsensitiv, idx2Exp = TRUE, amplitudeShift = TRUE)$AIC
   i <- i + 1
 }
-plot(X,Y, main = 'Goodness of fit', xlab = 'Month number s(33 = September 2014)', ylab = 'AIC', type = "l") 
+plot(X, Y, main = 'Goodness of fit', xlab = 'Month number s(33 = September 2014)', ylab = 'AIC', type = "l") 
 names(Y) = X
-Y # minima at months=36:38 so will choose midpoint as month = 37.
+Y # minima at months = 36:38 so will choose midpoint as month = 37.
+```
 
+## Table 1 parameter estimates
+```{r table1}
 # final model
 intervention <- calcDxconst(37)
 x <- list(
@@ -698,72 +705,6 @@ final.modelintjan15 <- hhh4_lag(stsObj = ka.sts, control = x)
 final.modelintjan15$convergence
 summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10281·58
 changeoftrend.coeffs <- summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) # work in exp() space
-
-boxplot(residuals(final.modelintjan15), use.cols = TRUE) # quite a range in the residuals by district, so makes sense to resample by district grouping for this bootstrap. See coef.bstrap.R which performed this on the High Performance Cluster.
-
-# table of coeffs
-coef.table = matrix(nrow = 8, ncol = 4, dimnames = list(c("other","V","pilot","end.1","end.HL.11","other*V","other*V*pilot","end.1*end.HL.11"),c("modelmean","modelSE","bstrapmean","bstrapSE")))
-coef.vector = NULL
-for (i in 1:100) {
-  load(file = paste0("C:/Users/mochu/ITSA/bstrapresults1/results1/coef.list.bstrap",i,".RData"))
-  coef.vector = c(unlist(coef.list), coef.vector)
-}
-other.vector = coef.vector[seq.int(from = 1, to = 48000, by = 24)]
-V.vector = coef.vector[seq.int(from = 2, to = 48000, by = 24)]
-pilot.vector = coef.vector[seq.int(from = 3, to = 48000, by = 24)]
-end.1.vector = coef.vector[seq.int(from = 7, to = 48000, by = 24)]
-end.HL.HL.vector = coef.vector[seq.int(from = 8, to = 48000, by = 24)]
-othertimesV = other.vector + V.vector
-othertimesVtimespilot = other.vector + V.vector + pilot.vector
-end.1timesend.HL.HL = end.1.vector + end.HL.HL.vector
-stopifnot(all(!is.na(coef.vector))) # PASS, all model runs converged
-
-hist(exp(other.vector))
-hist(exp(V.vector))
-hist(exp(pilot.vector))
-hist(exp(end.1.vector))
-hist(exp(end.HL.HL.vector)) # non-Normal, has long tail
-hist(exp(othertimesV))
-hist(exp(othertimesVtimespilot))
-hist(exp(end.1timesend.HL.HL))
-
-withinHDI <- function(x) {
-  range = as.numeric(hdi(x, credMass = 0.95))
-  whatswithin = ((x >= range[1]) & (x <= range[2]))
-  x = x[whatswithin]
-  return(x)
-}
-
-# from histogram analysis going to use 95% HD interval to trim distributions for a more robust estimate
-other.vector = withinHDI(other.vector)
-V.vector = withinHDI(V.vector)
-pilot.vector = withinHDI(pilot.vector)
-end.1.vector = withinHDI(end.1.vector)
-end.HL.HL.vector = withinHDI(end.HL.HL.vector)
-othertimesV = withinHDI(othertimesV)
-othertimesVtimespilot = withinHDI(othertimesVtimespilot)
-end.1timesend.HL.HL = withinHDI(end.1timesend.HL.HL)
-
-coef.table[1,3] = mean(exp(other.vector))
-coef.table[2,3] = mean(exp(V.vector))
-coef.table[3,3] = mean(exp(pilot.vector))
-coef.table[4,3] = mean(exp(end.1.vector))
-coef.table[5,3] = mean(exp(end.HL.HL.vector))
-coef.table[6,3] = mean(exp(othertimesV))
-coef.table[7,3] = mean(exp(othertimesVtimespilot))
-coef.table[8,3] = mean(exp(end.1timesend.HL.HL))
-coef.table[1,4] = sd(exp(other.vector))/sqrt(2000)
-coef.table[2,4] = sd(exp(V.vector))/sqrt(2000)
-coef.table[3,4] = sd(exp(pilot.vector))/sqrt(2000)
-coef.table[4,4] = sd(exp(end.1.vector))/sqrt(2000)
-coef.table[5,4] = sd(exp(end.HL.HL.vector))/sqrt(2000)
-coef.table[6,4] = sqrt(mean(exp(2*other.vector + 2*V.vector)) - (mean(exp(other.vector+V.vector)))^2)/sqrt(2000)
-coef.table[7,4] = sqrt(mean(exp(2*other.vector + 2*V.vector + 2*pilot.vector)) - (mean(exp(other.vector + V.vector + pilot.vector)))^2)/sqrt(2000)
-coef.table[8,4] = sqrt(mean(exp(2*end.1.vector + 2*end.HL.HL.vector)) - (mean(exp(end.1.vector + end.HL.HL.vector)))^2)/sqrt(2000)
-coef.table[1:5,1] = changeoftrend.coeffs[[9]][c(1,2,3,7,8)]
-coef.table[1:5,2] = changeoftrend.coeffs[[9]][c(13,14,15,19,20)]
-coef.table # appears that bootstrap estimates for the first 5 rows (that can be compared with model output) show that bootstrapping tends to underestimate the sd by around ...
-100-(round(range(coef.table[1:5,4]/coef.table[1:5,2]*100))) # 52--97%
 
 # pre-pilot Vaishali
 prepilot.vaishali = changeoftrend.coeffs[[9]][1] * changeoftrend.coeffs[[9]][2]
@@ -800,24 +741,22 @@ changeoftrend.coeffs[[9]][21] # 0·133
 changeoftrend.coeffs[[9]][10] # 0·515
 changeoftrend.coeffs[[9]][22] # 0·171
 
-# decided not to compute CIs for lower-priority results on non-pilot matters eg endemic/seasonal/neighbourhood contribution to avoid a sea of CIs. 
-
-# endemic params
+# endemic parameters
 changeoftrend.coeffs[[9]][7]*changeoftrend.coeffs[[9]][8] # 1·54e-06, high
 changeoftrend.coeffs[[9]][7] # 3·72e-08, low
 changeoftrend.coeffs[[9]][19] # 1·48e-08, low
 
-mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * exp(changeoftrend.coeffs[[9]][9]*1) # interpreting endemic intercept point estimate on jan 2012 for a low-incidence setting(<11 cases/mo) at its seasonal maximum (thus sin()=1, exp(A_{END}*1) = and exp(A_{END})). 0·1525025/mo on average for the 33 study districts in high season. As this is far less than 1/mo, no point calculating what it would be in low season.
+mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * exp(changeoftrend.coeffs[[9]][9]*1) # interpreting endemic intercept point estimate on Jan 2012 for a low-incidence setting(<11 cases/mo) at its seasonal maximum (thus sin()=1, and so exp(A_{END}*1) = exp(A_{END})). 0·1525025/mo on average for the 33 study districts in high season. As this is far less than 1/mo, no point calculating what it would be in low season.
 
 mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * exp(changeoftrend.coeffs[[9]][9]*1) * changeoftrend.coeffs[[9]][8] # for a high-incidence setting in high season, ~6 cases/mo
 
 mean(popn.time.matrix[1,]) * changeoftrend.coeffs[[9]][7] * exp(changeoftrend.coeffs[[9]][9]*(-1)) * changeoftrend.coeffs[[9]][8] # for a high-incidence setting in low season, ~3 cases/mo
 
-# seasonality change on AR. Not as interested as seasonality on END component as the END component generally has a far smaller contribution as per SI Fig. S5
-plot(final.modelintjan15, type = "season") # read-off min & max of 2nd (AR compon.) graph 
-(1.31 - 0.76)*100 # 55 % May (max), November (min)
+# seasonality change on epidemic component. Not interested in seasonality on endemic component as the endemic component generally has a far smaller contribution as per SI Fig. S5 versus epidemic component.
+plot(final.modelintjan15, type = "season") # read-off min & max of 2nd (epidemic component a.k.a. "AR") graph 
+(1.31 - 0.76)*100 # November (min), +55 % May (max)
 
-# ne contribution
+# neighbourhood contribution
 changeoftrend.coeffs[[9]][6] # 4·77e-03
 changeoftrend.coeffs[[9]][6]*100 # 0·5%
 changeoftrend.coeffs[[9]][18] # 1·37e-03
@@ -829,27 +768,29 @@ changeoftrend.coeffs[[9]][12] # 0·115
 changeoftrend.coeffs[[9]][24] # 0·018
 ```
 
+## Figure S5 model decomposition
 ```{r final-model-separated-components}
 setwd(fig.loc)
 svg(filename = "figS5decomposition.svg", width = 8, height = 5.3)
 # need to sort out colours
-hhh4addon::plotHHH4lag_fitted(x = final.modelintjan15, units = 33, names = "", col = c("#CC79A8", "#F0E442", "#009E73"), pch = 1, pt.cex = 1, par.settings = list(family = "serif", xaxs = "i", yaxs = "i", mar=c(4.1, 4.1, 1.1, 1.1)), border = c("grey28", "grey28", "grey28"), xlab = "Diagnosis date (from January 2012 until December 2017)", ylab = "Number of VL cases in Vaishali", start = c(2012,1), end = c(2017,12), xlim = c(2012,2017.99), ylim = c(0,264), legend.args = list(legend = c("observed", "neighbourhood (autoregressive, Vaishali's neighbours)", "epidemic (autoregressive, Vaishali)", "endemic (background, Vaishali)"), x=c(2014, 2017.75), y=c(250,190), bty="o", pch = c(1,15,15,15), lty = c(NA,NA,NA,NA), pt.cex = 1.5, inset = 0, text.width=2.6), legend.observed = TRUE)
+hhh4addon::plotHHH4lag_fitted(x = final.modelintjan15, units = 33, names = "", col = c("#CC79A8", "#F0E442", "#009E73"), pch = 1, pt.cex = 1, par.settings = list(family = "serif", xaxs = "i", yaxs = "i", mar = c(4.1, 4.1, 1.1, 1.1)), border = c("grey28", "grey28", "grey28"), xlab = "Diagnosis date (from January 2012 until December 2017)", ylab = "Number of VL cases in Vaishali", start = c(2012,1), end = c(2017,12), xlim = c(2012,2017.99), ylim = c(0,264), legend.args = list(legend = c("observed", "neighbourhood (autoregressive, Vaishali's neighbours)", "epidemic (autoregressive, Vaishali)", "endemic (background, Vaishali)"), x = c(2014, 2017.75), y = c(250,190), bty = "o", pch = c(1,15,15,15), lty = c(NA, NA, NA, NA), pt.cex = 1.5, inset = 0, text.width = 2.6), legend.observed = TRUE)
 dev.off()
 ```
 
+## Model validation
 ```{r model-diagnostics, eval = FALSE}
 final.model.residual <- residuals(final.modelintjan15)
 setwd(fig.loc)
 svg(filename = "figS6heteroskedastic.svg", width = 8, height = 5.3)
 par(family = "serif")
-plot(final.modelintjan15$fitted.values,final.model.residual, 
+plot(final.modelintjan15$fitted.values, final.model.residual, 
      xlab = TeX('Fitted values of the case counts $Y_{i,t}$'), xlim = c(0,120), ylim = c(-3.5, 5.0), yaxt = "n",
      ylab = 'Model residuals (standardised)', xaxs = "i", yaxs = "i")
 axis(2, at = c(-3,-1,0,1,3,5), labels = c("-3","-1","0","1","3","5"), las = 2)
 abline(h = 0, lwd = 2, lty = 2)
 dev.off()
 ```
-Model fit appears reasonably homoskedastic. There is some model weakness in overestimating low case counts, however generally the variance in residuals remains constant across case count magnitude. May indicate that a subdistrict model with few cases may be difficult to fit.
+Model fit appears reasonably homoskedastic. There is some model overestimation for low case counts, however generally the variance in residuals remains constant across case count magnitude. May indicate that a subdistrict model with few cases may be difficult to fit.
 
 ```{r model-sensitivity-to-int.start.month}
 i <- 1
@@ -873,16 +814,16 @@ params <- summary(y, idx2Exp = TRUE, amplitudeShift = TRUE)
 X[,i] <- as.numeric(params$fixef[,1])
 i <- i + 1
 }
-signif(apply(X, 1, min),digits = 3) # find min of each parameter
-signif(X[,5],digits = 3) # print the jan15 value
-signif(apply(X, 1, max),digits = 3) # find max of each parameter
+signif(apply(X, 1, min), digits = 3) # find min of each parameter
+signif(X[,5], digits = 3) # print the Jan 2015 value
+signif(apply(X, 1, max), digits = 3) # find max of each parameter
 
 (8.13-7.21)/7.21*100 # 13% intervention term varies the most,
 (9.7-9.11)/9.11*100 # 6% Vaishali-specific intercept next,
 # followed by the rest by a few percent.
 ```
 
-To assess select the best predictive model to simulate the counterfactual and intervention model we assessed their predictive performance. The test data was Jan 2016--Dec 2016. 2015 couldn't be used due to the 12 lags required. The simulation period was 2016--7.
+To assess select the best predictive model to simulate the counterfactual & intervention model we assessed their predictive performance. The test data was Jan 2016–Dec 2016. 2015 couldn't be used due to the 12 lags required. The simulation period was 2016–7.
 We use our predictivePower() function for this purpose. When doing predictive performance comparison tests using model scores we use the ranked probability score (RPS).
 
 ```{r predictive-model}
@@ -904,13 +845,13 @@ predictivePower <- function(null.model, new.model, seed){
 return(permut.test.rps.pvalue)
 }
 
-# reference(base model) vs pilot and counterfactual on predictive performance
+# reference (base model) vs pilot & counterfactual on predictive performance
 set.seed(2030)
 models2compare = c("M1.base", "final.model", 
                    "final.model.nopilot")
 VLpred <- lapply(mget(models2compare), oneStepAhead_hhh4lag, 
                         tp = 37, type = "rolling", which.start = "current")
-SCORES <- c("rps","ses")
+SCORES <- c("rps", "ses")
 VLscores = lapply(VLpred, scores, which = SCORES, individual = TRUE)
 t(sapply(VLscores, colMeans, dims = 2)) # final & counterfactual models have lower RPS than base model (2·82). counterfactual (2·46) has higher predictive power than final model (2·50)
 predictivePower(final.model, M1.base, seed = 2030) # p < 1e-05
@@ -1013,7 +954,7 @@ models2compare = c("model.12poisson","model.12linear", "model.12geo",
                    "final.modelintjan15")
 VLpred <- lapply(mget(models2compare), oneStepAhead_hhh4lag, 
                         tp = 48, type = "rolling", which.start = "current")
-SCORES <- c("rps","ses")
+SCORES <- c("rps", "ses")
 VLscores = lapply(VLpred, scores, which = SCORES, individual = TRUE)
 t(sapply(VLscores, colMeans, dims = 2)) # final.modelintjan15 best (rps = 2·08) wrt predictive performance 
 
@@ -1021,8 +962,7 @@ par(mfrow = c(1,4))
 for (m in models2compare){
   surveillance::pit(VLpred[[m]], plot = list(ylim = c(0, 1.4), main = m)) 
 }
-# some overdispersion in the final model (but it's better than the first 3) but there's
-# nothing we can do about that.
+# some overdispersion in the final model to be aware of, though it still surpasses in terms of predictive performance so we shall continue with it.
 setwd(fig.loc)
 svg(filename = "figS10PIT.svg", width = 8, height = 5.3)
 par(family = "serif")
@@ -1050,13 +990,13 @@ summary(final.modelwithout, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10286·1
 
 time.period <- c(48,71) # 48 matches the value in predictivePower()
 
-final.model.oneStepAhead <- hhh4addon::oneStepAhead_hhh4lag(final.modelintjan15, time.period, type="rolling")
+final.model.oneStepAhead <- hhh4addon::oneStepAhead_hhh4lag(final.modelintjan15, time.period, type = "rolling")
 final.model.oneStepAhead$allConverged
 colMeans(scores(final.model.oneStepAhead))
 P <- seq(0.01, 0.99, by = 0.01)
 Q <- quantile(final.model.oneStepAhead, probs = P, type = 8)
 Q <- as.matrix(Q[,33,])
-without.oneStepAhead <- hhh4addon::oneStepAhead_hhh4lag(final.modelwithout, time.period, type="rolling")
+without.oneStepAhead <- hhh4addon::oneStepAhead_hhh4lag(final.modelwithout, time.period, type = "rolling")
 without.oneStepAhead$allConverged
 colMeans(scores(without.oneStepAhead))
 Q.1 <- quantile(without.oneStepAhead, probs = P, type = 8)
@@ -1077,10 +1017,10 @@ dev.off()
 
 # Estimating cases averted for Vaishali
 
-1. Visual check the 'no-change-of-trend' model can predict 2014 well based on 2013 fit.
+1. Visually check that the 'no-change-of-trend' (noCOI) model can predict 2014 well, based on 2013 fit.
 2. Fit 'no-change-of-intercept' model for Jan 2013-Dec 2014
 3. Predict Jan15-Dec17 for Vaishali
-4. Sum over all months the following => the difference between 'predicted noCOI' & 'actuals COI' for Jan15 to Dec17 inclusive for Vaishali only
+4. Sum over all months the following: the difference between 'predicted noCOI' & 'actuals COI' for Jan15 to Dec17 inclusive for Vaishali only
 
 ```{r cases-averted-step1}
 x <- list(
@@ -1100,19 +1040,19 @@ y.pred <- oneStepAhead_hhh4lag(result = noint.2013, tp = time.period, type = 'ro
 setwd(fig.loc)
 svg(filename = "figS7withoutpredperf.svg", width = 13.66, height = 7.68)
 par(family = "serif")
-plot(ka.sts@observed[,33], xlim = c(1,36), ylim = c(0,265), xaxs = 'i', xaxt = "n", yaxs = 'i', type = 'l', col = 'black', lwd = 2, family = "serif", main = "", xlab = 'Diagnosis month (from 2012-2014)', ylab = 'Number of VL cases in Vaishali', yaxt = "n")
-lines(12:24, c(NA,noint.2013$fitted.values[1:12,33]), type = 'l', col = 'red', lwd = 2, lty = 1)
-lines(c(rep(NA,24),y.pred$pred[,33]), type = 'l', col = 'red', lwd = 2, lty = 2)
-axis(1, at = c(1,seq(5,33,4),36), labels = c("Jan-12", "May-12", "Sep-12", "Jan-13", "May-13", "Sep-13", "Jan-14", "May-14", "Sep-14", "Dec-14"))
+plot(ka.sts@observed[,33], xlim = c(1,36), ylim = c(0,265), xaxs = 'i', xaxt = "n", yaxs = 'i', type = 'l', col = 'black', lwd = 2, family = "serif", main = "", xlab = 'Diagnosis month (from 2012–2014)', ylab = 'Number of VL cases in Vaishali', yaxt = "n")
+lines(12:24, c(NA, noint.2013$fitted.values[1:12,33]), type = 'l', col = 'red', lwd = 2, lty = 1)
+lines(c(rep(NA,24), y.pred$pred[,33]), type = 'l', col = 'red', lwd = 2, lty = 2)
+axis(1, at = c(1, seq(5,33,4), 36), labels = c("Jan-12", "May-12", "Sep-12", "Jan-13", "May-13", "Sep-13", "Jan-14", "May-14", "Sep-14", "Dec-14"))
 axis(2, at = c(0,50,100,150,200,250), 
      labels = c("0","50","100","150","200","250"), las = 2)
 abline(v = 24.5, col = "gray")
-legend(x = c(26, 35), y = c(200, 240), text.width = 5, legend=c('observed', '2013 fit (12 months)', '2014 prediction (12 months)'), col=c('black', 'red', 'red'), lty=c(1,1,2), lwd=2)
+legend(x = c(26, 35), y = c(200, 240), text.width = 5, legend = c('observed', '2013 fit (12 months)', '2014 prediction (12 months)'), col = c('black', 'red', 'red'), lty = c(1,1,2), lwd = 2)
 dev.off()
 ```
-Looks like a reasonable fit and prediction. Now do steps 2-4:
+Looks like a reasonable fit & prediction. Now do steps 2–4:
 
-```{r cases-averted-step2to4, eval=FALSE, include=TRUE}
+```{r cases-averted-step2to4, eval = FALSE, include = TRUE}
 gc() # for high no.sims we want to clear out the memory
 starting.seed = 16092018-17:25
 x <- list(
@@ -1129,7 +1069,7 @@ noint.Dec14 <- hhh4_lag(stsObj = ka.sts, control = x) # counterfactual
 noint.Dec14$convergence
 summary(noint.Dec14, amplitudeShift = TRUE, idx2Exp = TRUE)
 no.sims <- 100000 
-y.start <- surveillance::observed(ka.sts)[25:36, ] # y.start=Jan15, range as it's distributed lags
+y.start <- surveillance::observed(ka.sts)[25:36, ] # y.start = Jan15, range as it's distributed lags
 y.sim.noint.2012Dec14 <- simulate(noint.Dec14, nsim = no.sims, seed = starting.seed, subset = 37:72, y.start = y.start)
 y.sim.final.model.pred <- simulate(final.model, nsim = no.sims, seed = starting.seed, subset = 37:72, y.start = y.start) # note both simulations get the same starting seed
 save(y.sim.noint.2012Dec14, y.sim.final.model.pred, file = "casesavertedsims.RData")
@@ -1156,8 +1096,8 @@ plot(median.averted.t[3,], type = "l", ylim = c(-24,479), xaxs = "i", yaxs = "i"
      xlab = "Intervention month", ylab = "VL cases averted", col = "#56B4E9", lwd = 2)
 lines(median.averted.t[2,], lty = 2, lwd = 4, col = "#56B4E9")
 lines(median.averted.t[5,], lty = 2, lwd = 4, col = "#56B4E9")
-abline(h=0)
-legend(x = c(2.5, 17), y = c(315, 410), text.width = 5, legend=c('median', 'upper/lower quartiles'), col=c("#56B4E9", "#56B4E9"), lty=c(1,2), lwd=4,
+abline(h = 0)
+legend(x = c(2.5, 17), y = c(315, 410), text.width = 5, legend =c('median', 'upper/lower quartiles'), col = c("#56B4E9", "#56B4E9"), lty = c(1, 2), lwd = 4,
        seg.len = 4)
 axis(1, at = c(1,13,25,36), labels = c("Jan-15","Jan-16","Jan-17","Dec-17"))
 dev.off()
