@@ -6,7 +6,7 @@ output: pdf_document
 ---
 
 # Preamble
-Code run in *R* v.4.1.1 with *RStudio* v1.4.1717 and main package \texttt{surveillance} v1.19.1 and \texttt{hhh4addon} v0.0.0.0.9014. Unfortunately the general public will not be able to knit this document as the data is not publicly available. However we hope it will help those wishing to apply interrupted time-series analyses to their own data.
+Code run in *R* v.4.1.1 with *RStudio* v1.4.1717 and main package \texttt{surveillance} v1.19.1 and \texttt{hhh4addon} v0.0.0.0.9014. Unfortunately although the data is not publicly available, we hope this code will help those wishing to apply interrupted time-series analyses to their own data.
 
 ## Load libraries & programme data
 ```{r lib-load, results='hide'}
