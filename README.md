@@ -6,9 +6,9 @@ This code resource can be cited as [![DOI](https://zenodo.org/badge/356652646.sv
 
 # Citing the paper
 
-> @ARTICLE{Kumar2021,
+> @ARTICLE{Kumar2022,
  author={Kumar, V. and Siddiqui, N.A and Pollington, T.M. et al.},  
- year={2021},  
+ year={2022},  
  title={{Impact of intensified control strategies on incidence of visceral leishmaniasis in a highly endemic district of Bihar, India: an interrupted time series analysis}},  
  journal={Epidemics},  
  doi={TBC},  
