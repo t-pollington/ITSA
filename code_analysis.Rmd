@@ -327,7 +327,7 @@ HL.factor <- as.factor(HL.factor)
 ## Estimate a reasonable diagnosis-to-diagnosis serial interval for VL
 Using infection-to-onset time from Chapman et al.'s 6-state Markov model (doi: 10.1186/s13071-015-1136-3, Table A8) 135 (109–167) days, gives the incubation period mean. This was from Bangladesh but assumed to be the same for India. From the same data but a different analysis (Chapman et al.'s doi: 10.1073/pnas.2002731117) we obtained the overdispersion term. Together we generated the incubation period distribution as a Negative Binomial distribution.
 
-The infectiousness period was obtained from Jervis et al (doi: 10.1186/s13071-017-2530-9) from their 2012–2013 study of onset-to-diagnosis time. We used the latter results from late 2012 and assumed these characteristics remained constant since 2012 until 2017. The times were read off the curve using pixel measurements and a log-normal distribution fitted  (SI §S6). 
+The infectiousness period was obtained from Jervis et al (doi: 10.1186/s13071-017-2530-9) from their 2012–2013 study of onset-to-diagnosis time. We used the latter results from late 2012 and assumed these characteristics remained constant since 2012 until 2017. The times were read off the curve using pixel measurements and a log-normal distribution fitted  (SI §S6).  
 
 ```{r estimate DxtoDx distribution}
 # pixel length measurements from Jervis et al. figure S1. Q3 2012 (doi: 10.1186/s13071-017-2530-9)
