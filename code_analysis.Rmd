@@ -346,7 +346,7 @@ while (counter < N.desired) {
   }
 }
 hist(incub.distrib2)
-round(mean(incub.distrib2)) #6mo (§2.3)
+round(mean(incub.distrib2)) # 6mo (§2.3)
 
 p.data = c(0.01,0.05,0.1,0.2,0.25,0.3,0.4,0.5,0.6,0.7,0.75,0.8,0.9,0.95,0.99)
 q.data = c(0,5,10,15,18,21,28,31,36,47,57,61,92,145,246)+1 # add 1d so lnorm can fit
@@ -1133,12 +1133,12 @@ while (counter < N.desired) {
 }
 OTD.distrib2 = OTD.distrib2/365*12 # convert to months
 hist(OTD.distrib2)
-mean(OTD.distrib2) # 1·04,1.24,1.75,2.07mo
+mean(OTD.distrib2) # 1·04,1·24,1·75,2·07mo
 halfOTD.distrib1 = sample(OTD.distrib2, size = N.desired, replace = TRUE)*0.5
 
 Dx.distrib = incub.distrib2 + OTD.distrib2  - halfOTD.distrib1
 hist(Dx.distrib)
-mean(Dx.distrib) # 6·3,6.4,6.7,6.8mo
+mean(Dx.distrib) # 6·3,6·4,6·7,6·8mo
 median(Dx.distrib)
 Dx = table(cut(Dx.distrib, breaks = -1:25))
 names(Dx) = -1:24
@@ -1214,7 +1214,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 final.model <- hhh4_lag(stsObj = ka.sts, control = x)
-summary(final.model, idx2Exp = TRUE) # AIC: 10273.46,10278.39,10286.92,10290.53
+summary(final.model, idx2Exp = TRUE) # AIC: 10273·46,10278·39,10286·92,10290·53
 
 # no-pilot final model (counterfactual)
 x <- list(
@@ -1228,7 +1228,7 @@ x <- list(
   max_lag = 12,
   subset = 13:nrow(ka.sts))
 final.model.nopilot <- hhh4_lag(stsObj = ka.sts, control = x)
-summary(final.model.nopilot, idx2Exp = TRUE) # AIC: 10278.02,10282.96,10291.48,10295.09 (§3.4)
+summary(final.model.nopilot, idx2Exp = TRUE) # AIC: 10278·02,10282·96,10291·48,10295·09 (§3.4)
 intervention <- calcDxconst(37)
 x <- list(
   ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
@@ -1242,21 +1242,21 @@ x <- list(
   subset = 13:nrow(ka.sts))
 final.modelintjan15 <- hhh4_lag(stsObj = ka.sts, control = x)
 final.modelintjan15$convergence
-summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10273.46,10278.39,10286.92,10290.53
+summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10273·46,10278·39,10286·92,10290·53
 changeoftrend.coeffs <- summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE)
 # pre-pilot Vaishali
 prepilot.vaishali = changeoftrend.coeffs[[9]][1] * changeoftrend.coeffs[[9]][2]
-prepilot.vaishali # Vaishali-specific pre-pilot AR term 0·684,0.681,,0.670 (Table 1)
+prepilot.vaishali # Vaishali-specific pre-pilot AR term 0·684,0·681,0·674,0·670 (Table 1)
 # during-pilot CIs
 duringpilot = changeoftrend.coeffs[[9]][1]*changeoftrend.coeffs[[9]][2]*
               changeoftrend.coeffs[[9]][3]
-duringpilot*100 # 49·8,49.5,48.9,48.6 (§3.4)
-(1 - changeoftrend.coeffs[[9]][3]) * 100 # 27·2,27.2,27.4,27.5% reduction for Vaishali's rate of change during the pilot (§3.4)
-changeoftrend.coeffs[[9]][3] # 0·728,0.728,0.726,0.725(Table 1)
+duringpilot*100 # 49·8,49·5,48·9,48·6 (§3.4)
+(1 - changeoftrend.coeffs[[9]][3]) * 100 # 27·2,27·2,27·4,27·5% reduction for Vaishali's rate of change during the pilot (§3.4)
+changeoftrend.coeffs[[9]][3] # 0·728,0·728,0·726,0·725(Table 1)
 pilot.lower = changeoftrend.coeffs[[9]][3] - 1.96*changeoftrend.coeffs[[9]][15]
 pilot.upper = changeoftrend.coeffs[[9]][3] + 1.96*changeoftrend.coeffs[[9]][15]
-(1-pilot.lower)*100 # 45·6,45.7,45.9,46.0 (§3.4)
-(1-pilot.upper)*100 # 8·8,8.8,8.9,8.9 (§3.4)
+(1-pilot.lower)*100 # 45·6,45·7,45·9,46·0 (§3.4)
+(1-pilot.upper)*100 # 8·8,8·8,8·9,8·9 (§3.4)
 gc() 
 starting.seed = 16092018-17:25
 x <- list(
