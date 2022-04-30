@@ -351,7 +351,7 @@ round(mean(incub.distrib2)) #6mo (§2.3)
 p.data = c(0.01,0.05,0.1,0.2,0.25,0.3,0.4,0.5,0.6,0.7,0.75,0.8,0.9,0.95,0.99)
 q.data = c(0,5,10,15,18,21,28,31,36,47,57,61,92,145,246)+1 # add 1d so lnorm can fit
 OTD.lnorm = rriskDistributions::get.lnorm.par(
-  p = p.data, q = q.data)
+  p = p.data, q = q.data) # sensitivity analysis on OD branches here (see chunk at end of Markdown for its branch)
 OTD.distrib2 = NULL
 counter = 0
 while (counter < N.desired) {
@@ -1113,4 +1113,172 @@ countercases17 = colSums(y.sim.noint.2012Dec14[25:36,33,])
 counter17 = (countercases16 - countercases17)/countercases16
 counter17[counter17 == 0] = NA # avoids Inf %
 quantile((extra17/counter17*100), probs = c(0.25,0.5,0.75), na.rm = TRUE)-100 # -42·9 LQ, 29·0 med, 137·5 UQ (§3.5)
+```
+
+```{r sensitivityanalysis}
+# investigating affect of changing OD on RQ1 & RQ2
+set.seed(19012)
+new.lnorm.meanlog = c(0.9,0.95,1.05,1.1)*OTD.lnorm[1]
+new.lnorm.sdlog = OTD.lnorm[2]
+i = 4
+OTD.distrib2 = NULL
+counter = 0
+while (counter < N.desired) {
+  store.sample = rlnorm(n = 1, meanlog = new.lnorm.meanlog[i], 
+                        sdlog = new.lnorm.sdlog)  
+  if(store.sample <= 492){ # 492 = max OTD
+    OTD.distrib2 = c(OTD.distrib2, store.sample)
+    counter = counter + 1
+  }
+}
+OTD.distrib2 = OTD.distrib2/365*12 # convert to months
+hist(OTD.distrib2)
+mean(OTD.distrib2) # 1·04,1.24,1.75,2.07mo
+halfOTD.distrib1 = sample(OTD.distrib2, size = N.desired, replace = TRUE)*0.5
+
+Dx.distrib = incub.distrib2 + OTD.distrib2  - halfOTD.distrib1
+hist(Dx.distrib)
+mean(Dx.distrib) # 6·3,6.4,6.7,6.8mo
+median(Dx.distrib)
+Dx = table(cut(Dx.distrib, breaks = -1:25))
+names(Dx) = -1:24
+sum(Dx[(1+2):(12+2)])/sum(Dx)*100
+Dx.12 = as.numeric(Dx[(1+2):(12+2)])
+Dx.12 = Dx.12/sum(Dx.12)
+calcDxconst <- function(startmonth, method = "SI", par_lag = NULL) {
+  int.constlag <- matrix(data = 0, nrow = dim(ka.sts)[1], ncol = dim(ka.sts)[2])
+  vaishali.count = ka.sts@observed[,33]
+  studytimeleft = 72 - startmonth + 1
+  casecorrection = rep.int(0,12)
+  lag = 1
+  for (t in (startmonth):(startmonth+11)) {
+    casecorrection[lag] = sum(vaishali.count[(t-1):((t-lag))])/
+      sum(vaishali.count[(t-1):(t-12)])
+    lag = lag + 1
+  }
+  Dx.const = rep.int(0, studytimeleft)
+  if(method == "SI"){
+    Dx.const[1] = Dx.12[1]*casecorrection[1]
+    for (lag in 2:12) {
+      Dx.const[lag] = sum(Dx.12[1:lag])*casecorrection[lag]
+    }
+  }
+  else if(method == "geo"){
+    geo.12 = hhh4addon::geometric_lag(par_lag, min_lag = 1, max_lag = 12)
+    Dx.const[1] = geo.12[1]*casecorrection[1]
+    for (lag in 2:12) {
+      Dx.const[lag] = sum(geo.12[1:lag])*casecorrection[lag]
+    }
+  }
+  else if(method == "poisson"){
+    poisson.12 = hhh4addon::poisson_lag(par_lag, min_lag = 1, max_lag = 12)
+    Dx.const[1] = poisson.12[1]*casecorrection[1]
+    for (lag in 2:12) {
+      Dx.const[lag] = sum(poisson.12[1:lag])*casecorrection[lag]
+    }
+  }
+  else if(method == "linear"){
+    linear.12 = hhh4addon::linear_lag(par_lag, min_lag = 1, max_lag = 12)
+    Dx.const[1] = linear.12[1]*casecorrection[1]
+    for (lag in 2:12) {
+      Dx.const[lag] = sum(linear.12[1:lag])*casecorrection[lag]
+    }
+  }
+  for (t in 13:studytimeleft){
+    Dx.const[t] = 1
+  }
+  int.constlag[startmonth:72,33] = Dx.const
+  return(int.constlag)
+}
+
+Dx_lag = function(par_lag, min_lag, max_lag){
+  Dx.12 = Dx.12
+  return(Dx.12)
+}
+
+vaishali <- matrix(data = c(rep.int(0, times = dim(ka.sts)[1]*dim(ka.sts)[2] - 72),
+                            rep.int(1, times = 72)),
+                   nrow = dim(ka.sts)[1], ncol = dim(ka.sts)[2], byrow = F)
+
+int.jan15constlag = calcDxconst(37) 
+end.HL.11 = matrix(data = 0, nrow = 72, ncol = 33)
+end.HL.11[ka.sts@observed >= 11] = 1
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + int.jan15constlag, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+final.model <- hhh4_lag(stsObj = ka.sts, control = x)
+summary(final.model, idx2Exp = TRUE) # AIC: 10273.46,10278.39,10286.92,10290.53
+
+# no-pilot final model (counterfactual)
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+final.model.nopilot <- hhh4_lag(stsObj = ka.sts, control = x)
+summary(final.model.nopilot, idx2Exp = TRUE) # AIC: 10278.02,10282.96,10291.48,10295.09 (§3.4)
+intervention <- calcDxconst(37)
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali + intervention, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:nrow(ka.sts))
+final.modelintjan15 <- hhh4_lag(stsObj = ka.sts, control = x)
+final.modelintjan15$convergence
+summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE) #AIC 10273.46,10278.39,10286.92,10290.53
+changeoftrend.coeffs <- summary(final.modelintjan15, idx2Exp = TRUE, amplitudeShift = TRUE)
+# pre-pilot Vaishali
+prepilot.vaishali = changeoftrend.coeffs[[9]][1] * changeoftrend.coeffs[[9]][2]
+prepilot.vaishali # Vaishali-specific pre-pilot AR term 0·684,0.681,,0.670 (Table 1)
+# during-pilot CIs
+duringpilot = changeoftrend.coeffs[[9]][1]*changeoftrend.coeffs[[9]][2]*
+              changeoftrend.coeffs[[9]][3]
+duringpilot*100 # 49·8,49.5,48.9,48.6 (§3.4)
+(1 - changeoftrend.coeffs[[9]][3]) * 100 # 27·2,27.2,27.4,27.5% reduction for Vaishali's rate of change during the pilot (§3.4)
+changeoftrend.coeffs[[9]][3] # 0·728,0.728,0.726,0.725(Table 1)
+pilot.lower = changeoftrend.coeffs[[9]][3] - 1.96*changeoftrend.coeffs[[9]][15]
+pilot.upper = changeoftrend.coeffs[[9]][3] + 1.96*changeoftrend.coeffs[[9]][15]
+(1-pilot.lower)*100 # 45·6,45.7,45.9,46.0 (§3.4)
+(1-pilot.upper)*100 # 8·8,8.8,8.9,8.9 (§3.4)
+gc() 
+starting.seed = 16092018-17:25
+x <- list(
+  ar = list(f = addSeason2formula(~ 1 + vaishali, period = ka.sts@freq)),
+  end = list(f = addSeason2formula(~ 1 + end.HL.11, period = ka.sts@freq), offset = population(ka.sts)),
+  ne = list(f = ~ 1, weights = neighbourhood(ka.sts) == 1),
+  family = HL.factor,
+  funct_lag = Dx_lag,
+  par_lag = 1,
+  min_lag = 1,
+  max_lag = 12,
+  subset = 13:36)
+noint.Dec14 <- hhh4_lag(stsObj = ka.sts, control = x)
+noint.Dec14$convergence
+summary(noint.Dec14, amplitudeShift = TRUE, idx2Exp = TRUE)
+no.sims <- 100000 
+y.start <- surveillance::observed(ka.sts)[25:36, ]
+y.sim.noint.2012Dec14 <- simulate(noint.Dec14, nsim = no.sims, seed = starting.seed, subset = 37:72, y.start = y.start)
+y.sim.final.model.pred <- simulate(final.model, nsim = no.sims, seed = starting.seed, subset = 37:72, y.start = y.start)
+save(y.sim.noint.2012Dec14, y.sim.final.model.pred, file = paste0(i,".casesavertedsims.RData"))
+y.sim.diff <- y.sim.noint.2012Dec14[,33,] - y.sim.final.model.pred[,33,]
+averted <- colSums(y.sim.diff)
+quantile(averted, probs = c(0.25,0.5,0.75)) # 231 351 479, 232 351 478, 235 353 477, 238 354 476
+save.image(file = paste0(i,"sensitivity.RData"))
 ```
