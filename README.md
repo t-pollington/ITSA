@@ -1,5 +1,5 @@
 # Code analysis
-The code analysis for [*Impact of intensified control on visceral leishmaniasis in a highly-endemic district of Bihar, India: an interrupted time series analysis*](https://www.researchgate.net/publication/344720043_Impact_of_intensified_control_strategies_on_incidence_of_visceral_leishmaniasis_in_a_highly_endemic_district_of_Bihar_India) is available to view in [R Markdown](code_analysis.Rmd). 
+The code analysis for [*Impact of intensified control on visceral leishmaniasis in a highly-endemic district of Bihar, India: an interrupted time series analysis*](https://www.sciencedirect.com/science/article/pii/S1755436522000184) is available to view in [R Markdown](code_analysis.Rmd). 
 
 # Citing this resource
 This code resource can be cited as [![DOI](https://zenodo.org/badge/356652646.svg)](https://zenodo.org/badge/latestdoi/356652646).
@@ -11,7 +11,7 @@ This code resource can be cited as [![DOI](https://zenodo.org/badge/356652646.sv
  year={2022},  
  title={{Impact of intensified control strategies on incidence of visceral leishmaniasis in a highly endemic district of Bihar, India: an interrupted time series analysis}},  
  journal={Epidemics},  
- doi={TBC},  
+ doi={10.1016/j.epidem.2022.100562},  
 }
 
 [![CC BY 4.0][cc-by-shield]][cc-by]  
