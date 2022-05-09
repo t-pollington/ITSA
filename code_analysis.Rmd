@@ -367,6 +367,7 @@ while (counter < N.desired) {
 OTD.distrib2 = OTD.distrib2/365*12 # convert to months
 hist(OTD.distrib2)
 mean(OTD.distrib2) # 1·47mo (§2.3)
+sd(OTD.distrib2) # 1·36mo
 halfOTD.distrib1 = sample(OTD.distrib2, size = N.desired, replace = TRUE)*0.5
 
 Dx.distrib = incub.distrib2 + OTD.distrib2  - halfOTD.distrib1
