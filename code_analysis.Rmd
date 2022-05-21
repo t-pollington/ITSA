@@ -26,8 +26,8 @@ library(stats) # v4.1.1 ts()
 library(surveillance) # v1.19.1 poly2adjmat(), hhh4_spacetime classes
 library(HDInterval) # v0.2.2
 
-#folder.loc = "hidden_location_sorry"
-#fig.loc = "hidden_location_sorry2"
+#folder.loc = "hidden, sorry"
+#fig.loc = "hidden, sorry"
 setwd(folder.loc)
 df <- read.dta13('vl_incl_coinfs.dta')
 ```
@@ -312,9 +312,9 @@ svg(filename = "figS2highlowhist.svg", width = 13.66, height = 7.68) # Fig. S4
 par(family = "serif")
 plot(h,col = bar.colour, main = NULL, xlab = 'Total VL cases during 2012–2017', 
      ylab = 'Number of districts', xaxs = "i", yaxs = "i", yaxt = "n",
-     family = "serif")
+     family = "serif", cex.lab = 1.5, cex.axis = 1.5)
 axis(2, at = seq(0,12,2), labels = c("0","2","4","6","8","10","12"), las = 2)
-legend(c(4000,5300),c(9.75, 11),
+legend(c(2700,5300),c(8.5, 11), cex = 2,
 legend = c(TeX('high endemicity $\\psi_H$ ($\\geq$1000 cases)'),
            TeX('low endemicity $\\psi_L$ ($<$1000 cases)')),
 col = c('#CC79A7', '#009E73'), pch = c(15,15), pt.cex = 1.5)
